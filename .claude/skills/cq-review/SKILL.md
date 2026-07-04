@@ -45,7 +45,7 @@ python3 $SKILL/cq-metrics.py [options] <file-or-dir>...
    fix-loop Skill のプロトコル (固定ガードテストセット + 1 変更 1 検証) で行う。
 6. **記録の振り分け**:
    - 今直さない (後回し/見送り) 指摘 → repo 直下の TODO.md に 1 行
-     (要点 + file:line + あれば S-ID)
+     (要点 + file:line + あれば S-ID + 出典レビュー notes/reviews/... へのリンク)
    - 繰り返し出る指摘 → `notes/review-log.md` に 1 行追記。
      3 回出た指摘は checklist.md への昇格をユーザーに提案する。
 
