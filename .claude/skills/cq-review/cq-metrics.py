@@ -1,0 +1,391 @@
+#!/usr/bin/env python3
+"""Code quality metrics for brace-style languages (C/C++/Go/Java/JS/Rust etc).
+
+Heuristic candidate finder for code review: long functions, deep nesting,
+long parameter lists, duplicated code blocks. It intentionally trades parsing
+precision for zero dependencies — treat results as review candidates, not
+verdicts. Stdlib only, Python 3.6+.
+
+Usage:
+  cq-metrics.py [options] <file-or-dir>...
+
+Options:
+  --max-func-lines N   flag functions longer than N lines (default 60)
+  --max-nest N         flag nesting deeper than N inside a function (default 4)
+  --max-params N       flag parameter lists longer than N (default 5)
+  --dup-window N       duplicate block size in significant lines (default 8, 0=off)
+  --ext .a,.b          comma-separated extensions for directory scan
+  --top N              show at most N findings per category (default 20)
+  --csv                print one CSV data line instead of the report:
+                       label,files,functions,long_funcs,deep_nest,long_params,dup_groups
+                       (for trend tracking: cq-metrics.py --csv --label $(git rev-parse --short HEAD) src/ >> cq-trend.csv)
+  --label TEXT         label for the --csv line (e.g. commit hash; default "-")
+
+Exit codes: 0 = ran (findings are informational), 2 = usage/file error.
+"""
+
+import os
+import re
+import sys
+
+DEFAULT_EXTS = (".c", ".h", ".cc", ".hh", ".cpp", ".hpp", ".cxx", ".go",
+                ".java", ".js", ".ts", ".rs", ".m", ".mm", ".dart", ".kt",
+                ".swift", ".cs")
+CONTROL_KEYWORDS = {"if", "else", "for", "while", "do", "switch", "case",
+                    "return", "catch", "struct", "class", "enum", "union",
+                    "namespace", "typedef", "using", "extern", "select",
+                    "match", "impl", "loop", "unsafe", "synchronized",
+                    "import", "package"}
+NAME_RE = re.compile(r"([A-Za-z_][\w:~.]*)\s*\($")
+GO_FUNC_RE = re.compile(r"^\s*func\s*(?:\([^)]*\)\s*)?([A-Za-z_]\w*)\s*\(")
+
+
+def strip_code(text, keep_strings=False):
+    """Blank out comments (and, unless keep_strings, string/char literal
+    contents), preserving line structure so line numbers and braces stay
+    meaningful."""
+    out = []
+    i, n = 0, len(text)
+    state = None  # None, 'line', 'block', '"', "'", '`'
+    while i < n:
+        c = text[i]
+        nxt = text[i + 1] if i + 1 < n else ""
+        if state is None:
+            if c == "/" and nxt == "/":
+                state = "line"
+                i += 2
+                out.append("  ")
+                continue
+            if c == "/" and nxt == "*":
+                state = "block"
+                i += 2
+                out.append("  ")
+                continue
+            if c in ('"', "'", "`"):
+                state = c
+                out.append(c)
+                i += 1
+                continue
+            out.append(c)
+        elif state == "line":
+            if c == "\n":
+                state = None
+                out.append(c)
+            else:
+                out.append(" ")
+        elif state == "block":
+            if c == "*" and nxt == "/":
+                state = None
+                i += 2
+                out.append("  ")
+                continue
+            out.append(c if c == "\n" else " ")
+        else:  # inside string/char literal
+            if c == "\\" and state != "`":
+                out.append(c if keep_strings else " ")
+                if keep_strings:
+                    out.append(text[i + 1] if i + 1 < n and
+                               text[i + 1] != "\n" else " ")
+                else:
+                    out.append(" ")
+                i += 2
+                continue
+            if c == state:
+                state = None
+                out.append(c)
+            else:
+                if c == "\n":
+                    out.append(c)
+                else:
+                    out.append(c if keep_strings else " ")
+        i += 1
+    return "".join(out)
+
+
+def split_params(group):
+    """Count parameters in the text between the outer parens."""
+    group = group.strip()
+    if not group or group == "void":
+        return 0
+    depth = 0
+    count = 1
+    for c in group:
+        if c in "(<[{":
+            depth += 1
+        elif c in ")>]}":
+            depth -= 1
+        elif c == "," and depth == 0:
+            count += 1
+    return count
+
+
+def first_paren_group(header):
+    """Return contents of the first balanced (...) group, or None."""
+    start = header.find("(")
+    if start < 0:
+        return None
+    depth = 0
+    for j in range(start, len(header)):
+        if header[j] == "(":
+            depth += 1
+        elif header[j] == ")":
+            depth -= 1
+            if depth == 0:
+                return header[start + 1:j]
+    return None
+
+
+def looks_like_function(header):
+    header = header.strip()
+    if not header or "(" not in header:
+        return False
+    group = first_paren_group(header)
+    if group is None:
+        return False
+    first_word = re.match(r"[A-Za-z_#]\w*", header)
+    if first_word and first_word.group(0) in CONTROL_KEYWORDS:
+        return False
+    if first_word and first_word.group(0) == "#":  # preprocessor
+        return False
+    # 'foo = {...}' initializers and lambda assignments: skip.
+    before_paren = header[:header.find("(")]
+    if "=" in before_paren:
+        return False
+    # Header should end right after the param group modulo trailing
+    # qualifiers (const, noexcept, override, -> T, throws, initializer list).
+    return True
+
+
+def function_name(header):
+    m = GO_FUNC_RE.match(header)
+    if m:  # Go: skip the receiver so methods report their real name
+        return m.group(1)
+    before = header[:header.find("(") + 1]
+    m = NAME_RE.search(before.strip())
+    return m.group(1) if m else "<anon>"
+
+
+def param_group(header):
+    """Return the parameter (...) contents; for Go methods, the group after
+    the method name rather than the receiver."""
+    m = GO_FUNC_RE.match(header)
+    if m:
+        rest = header[m.end() - 1:]
+        return first_paren_group(rest)
+    return first_paren_group(header)
+
+
+def analyze_file(path, opts, dup_index):
+    try:
+        with open(path, "r", encoding="utf-8", errors="replace") as f:
+            raw = f.read()
+    except OSError as e:
+        sys.stderr.write("error: cannot read %s: %s\n" % (path, e))
+        return None
+    text = strip_code(raw)
+    lines = text.splitlines()
+    functions = []
+    depth = 0
+    header_buf = ""
+    header_line = None
+    func = None  # dict while inside a function
+
+    for lineno, line in enumerate(lines, 1):
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            # Blank line or preprocessor directive: a function header never
+            # spans these, and #include/#define braces would corrupt depth.
+            header_buf, header_line = "", None
+            continue
+        for c in line:
+            if c == "{":
+                if func is None and looks_like_function(header_buf):
+                    func = {
+                        "name": function_name(header_buf),
+                        "line": header_line or lineno,
+                        "params": split_params(
+                            param_group(header_buf) or ""),
+                        "entry_depth": depth,
+                        "max_depth": 0,
+                    }
+                depth += 1
+                if func is not None:
+                    rel = depth - func["entry_depth"] - 1
+                    if rel > func["max_depth"]:
+                        func["max_depth"] = rel
+                header_buf, header_line = "", None
+            elif c == "}":
+                depth = max(0, depth - 1)
+                if func is not None and depth == func["entry_depth"]:
+                    func["end"] = lineno
+                    func["loc"] = lineno - func["line"] + 1
+                    functions.append(func)
+                    func = None
+                header_buf, header_line = "", None
+            elif c == ";":
+                header_buf, header_line = "", None
+            else:
+                if not header_buf.strip() and not c.isspace():
+                    header_line = lineno
+                header_buf += c
+        header_buf += " "
+
+    # Duplicate detection on significant normalized lines. Strings are kept
+    # (blanking them would make distinct lines look identical) and
+    # preprocessor lines are skipped (#include runs are trivially similar).
+    if opts["dup_window"] > 0:
+        dup_lines = strip_code(raw, keep_strings=True).splitlines()
+        sig = [(ln, re.sub(r"\s+", " ", l.strip()))
+               for ln, l in enumerate(dup_lines, 1)]
+        sig = [(ln, s) for ln, s in sig
+               if s and len(s) > 3 and not s.startswith("#")
+               and not re.fullmatch(r"[{}();,]*", s)]
+        w = opts["dup_window"]
+        for k in range(len(sig) - w + 1):
+            key = "\n".join(s for _, s in sig[k:k + w])
+            dup_index.setdefault(key, []).append((path, sig[k][0]))
+    return functions
+
+
+def collect_files(paths, exts):
+    files = []
+    for p in paths:
+        if os.path.isdir(p):
+            for root, dirs, names in os.walk(p):
+                dirs[:] = [d for d in dirs if not d.startswith(".")]
+                for name in sorted(names):
+                    if os.path.splitext(name)[1] in exts:
+                        files.append(os.path.join(root, name))
+        elif os.path.isfile(p):
+            files.append(p)
+        else:
+            sys.stderr.write("error: no such file or directory: %s\n" % p)
+            sys.exit(2)
+    return files
+
+
+def report(title, rows, top):
+    print("== %s: %d ==" % (title, len(rows)))
+    for row in rows[:top]:
+        print("  " + row)
+    if len(rows) > top:
+        print("  ... and %d more (raise --top to see all)" % (len(rows) - top))
+    print()
+
+
+def main(argv):
+    opts = {"max_func_lines": 60, "max_nest": 4, "max_params": 5,
+            "dup_window": 8, "top": 20, "ext": DEFAULT_EXTS,
+            "csv": False, "label": "-"}
+    paths = []
+    i = 1
+    while i < len(argv):
+        a = argv[i]
+        if a in ("--max-func-lines", "--max-nest", "--max-params",
+                 "--dup-window", "--top"):
+            key = a[2:].replace("-", "_")
+            i += 1
+            try:
+                opts[key] = int(argv[i])
+            except (IndexError, ValueError):
+                sys.stderr.write("error: %s needs an integer\n" % a)
+                sys.exit(2)
+        elif a == "--csv":
+            opts["csv"] = True
+        elif a == "--label":
+            i += 1
+            if i >= len(argv):
+                sys.stderr.write("error: --label needs a value\n")
+                sys.exit(2)
+            opts["label"] = argv[i]
+        elif a == "--ext":
+            i += 1
+            opts["ext"] = tuple(
+                e if e.startswith(".") else "." + e
+                for e in argv[i].split(","))
+        elif a in ("-h", "--help"):
+            sys.stdout.write(__doc__)
+            sys.exit(0)
+        else:
+            paths.append(a)
+        i += 1
+    if not paths:
+        sys.stderr.write(__doc__)
+        sys.exit(2)
+
+    files = collect_files(paths, opts["ext"])
+    if not files:
+        sys.stderr.write("error: no source files matched %s\n"
+                         % ",".join(opts["ext"]))
+        sys.exit(2)
+
+    all_funcs = []
+    dup_index = {}
+    for path in files:
+        funcs = analyze_file(path, opts, dup_index)
+        if funcs is not None:
+            for f in funcs:
+                f["file"] = path
+            all_funcs.extend(funcs)
+
+    long_funcs = sorted((f for f in all_funcs
+                         if f["loc"] > opts["max_func_lines"]),
+                        key=lambda f: -f["loc"])
+    deep = sorted((f for f in all_funcs if f["max_depth"] > opts["max_nest"]),
+                  key=lambda f: -f["max_depth"])
+    many_params = sorted((f for f in all_funcs
+                          if f["params"] > opts["max_params"]),
+                         key=lambda f: -f["params"])
+
+    dup_groups = []
+    last_locs = None
+    for key in sorted(dup_index,
+                      key=lambda k: (dup_index[k][0], k)):
+        locs = dup_index[key]
+        if len(locs) < 2:
+            continue
+        # collapse runs of shifted windows over the same duplicate
+        shifted = last_locs is not None and len(locs) == len(last_locs) and \
+            all(a == b and y == x + 1
+                for (a, x), (b, y) in zip(last_locs, locs))
+        last_locs = locs
+        if shifted:
+            dup_groups[-1]["extent"] += 1
+            continue
+        dup_groups.append({"locs": locs, "extent": opts["dup_window"]})
+    dup_groups.sort(key=lambda g: (-len(g["locs"]), -g["extent"]))
+
+    if opts["csv"]:
+        print("%s,%d,%d,%d,%d,%d,%d" % (
+            opts["label"].replace(",", "_"), len(files), len(all_funcs),
+            len(long_funcs), len(deep), len(many_params), len(dup_groups)))
+        return
+
+    report("Long functions (> %d lines)" % opts["max_func_lines"],
+           ["%s:%d  %s()  %d lines" % (f["file"], f["line"], f["name"],
+                                       f["loc"]) for f in long_funcs],
+           opts["top"])
+    report("Deep nesting (> %d levels)" % opts["max_nest"],
+           ["%s:%d  %s()  depth %d" % (f["file"], f["line"], f["name"],
+                                       f["max_depth"]) for f in deep],
+           opts["top"])
+    report("Long parameter lists (> %d params)" % opts["max_params"],
+           ["%s:%d  %s()  %d params" % (f["file"], f["line"], f["name"],
+                                        f["params"]) for f in many_params],
+           opts["top"])
+    if opts["dup_window"] > 0:
+        report("Duplicated blocks (>= %d significant lines)"
+               % opts["dup_window"],
+               ["~%d lines x %d sites: %s" % (
+                   g["extent"], len(g["locs"]),
+                   ", ".join("%s:%d" % loc for loc in g["locs"][:6]))
+                for g in dup_groups],
+               opts["top"])
+    print("== Summary ==")
+    print("  files: %d, functions: %d, flagged: long=%d deep=%d params=%d dup-groups=%d"
+          % (len(files), len(all_funcs), len(long_funcs), len(deep),
+             len(many_params), len(dup_groups)))
+
+
+if __name__ == "__main__":
+    main(sys.argv)
