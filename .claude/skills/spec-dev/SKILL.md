@@ -17,6 +17,7 @@ docs/<feature>/spec.md                   # S-01 (実現する R を明記)
 docs/<feature>/design.md                 # D-01 (実現する S を明記) + ADR
 notes/YYYYMMDD-<topic>.md                # 調査メモ (作業記録)
 notes/fix-sessions/YYYYMMDD-<topic>.md   # fix-loop の作業台帳
+notes/reviews/YYYYMMDD-<topic>.md        # コードレビュー結果の全文 (冒頭に対象コミット)
 notes/review-log.md                      # cq-review の指摘台帳
 ```
 
@@ -24,6 +25,8 @@ notes/review-log.md                      # cq-review の指摘台帳
 履歴を残す。notes/ は「時系列の作業記録」で、上書きせず追記していく。
 TODO.md は「生きたやることリスト」で、完了したら消し込む (履歴は git と notes/ に残る)。
 レビュー指摘のうち今直さないものは TODO.md へ 1 行 (要点 + 場所 + あれば S-ID) で入れる。
+PR ベースの開発では、レビュー結果は原則 PR コメントに残す (repo 内には置かない)。
+notes/reviews/ は PR を使わないローカルレビューの全文を残したい場合に使う。
 
 テンプレートはこの Skill の `templates/` にある。コミットやテストコメントにも
 ID を書く (例: `// T-03: S-02 boundary case`)。この ID が後の影響範囲調査 (/rework) の索引になる。
