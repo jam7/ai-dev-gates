@@ -11,6 +11,7 @@ description: Gated development flow from requirements to tests with traceability
 ## 成果物の置き場所と命名
 
 ```
+TODO.md                                  # やることリスト (repo 直下)
 docs/<feature>/requirements.md           # R-01, R-02, ... (現在の正)
 docs/<feature>/spec.md                   # S-01 (実現する R を明記)
 docs/<feature>/design.md                 # D-01 (実現する S を明記) + ADR
@@ -21,6 +22,8 @@ notes/review-log.md                      # cq-review の指摘台帳
 
 使い分け: docs/ は「現在の正」(要件・仕様・設計) を置き、変更時は取り消し線と理由で
 履歴を残す。notes/ は「時系列の作業記録」で、上書きせず追記していく。
+TODO.md は「生きたやることリスト」で、完了したら消し込む (履歴は git と notes/ に残る)。
+レビュー指摘のうち今直さないものは TODO.md へ 1 行 (要点 + 場所 + あれば S-ID) で入れる。
 
 テンプレートはこの Skill の `templates/` にある。コミットやテストコメントにも
 ID を書く (例: `// T-03: S-02 boundary case`)。この ID が後の影響範囲調査 (/rework) の索引になる。
