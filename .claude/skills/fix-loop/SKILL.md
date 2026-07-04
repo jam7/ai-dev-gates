@@ -18,7 +18,8 @@ description: Regression-guarded fix protocol to prevent whack-a-mole (fixing A b
    - 実行時間の目安: 1 回 5 分以内に収まる範囲。収まらなければ絞り、
      最終確認でフルテストを走らせる前提にする。
    - **セッション途中でセットを狭めない** (広げるのは可。狭めるとモグラたたきが再発する)。
-3. 台帳ファイル `fix-session-YYYYMMDD-<topic>.md` をプロジェクト直下 (または notes/) に作る。
+3. 台帳ファイル `notes/fix-sessions/YYYYMMDD-<topic>.md` を作る。関連するトレース ID
+   (S-03 など) があれば冒頭に書く (影響範囲調査で辿れるように)。
 4. **ベースライン取得**: ガードセットを 1 回実行し、結果を台帳に記録する。
    lit の場合はログを保存し `parse-lit-log.py save` でベースライン化
    (triage Skill のディレクトリに同梱されている)。

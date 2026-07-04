@@ -155,7 +155,7 @@ $ python3 ~/.claude/skills/spec-dev/trace-matrix.py --code src/ --code tests/ do
 Claude: fix-loop で進めます。
   目標: parser_test の escape_string ケースを通す
   ガードセット: parser_test 全体 + 過去にこの領域で壊れた tokenizer_test (計 42 テスト、約 2 分)
-  ベースライン取得中… escape_string のみ FAIL、他 41 PASS。台帳 fix-session-20260704-escape.md を作成。
+  ベースライン取得中… escape_string のみ FAIL、他 41 PASS。台帳 notes/fix-sessions/20260704-escape.md を作成。
 
   試行 1: エスケープ処理の順序が原因と仮説。unescape() の \\ 処理を最後に移動。
   → ガード実行: escape_string PASS、しかし raw_string が FAIL に後退。
