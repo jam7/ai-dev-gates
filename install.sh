@@ -15,6 +15,7 @@ if [ ! -d "$src" ]; then
   echo "error: no skills directory found next to install.sh" >&2
   exit 1
 fi
+root=""
 if [ $# -ge 1 ]; then
   root="$1"
   if [ ! -d "$root" ]; then
@@ -40,6 +41,23 @@ for d in "$src"/*/; do
   cp -r "$d" "$dest/$name"
   echo "  installed $name"
 done
+# project install only: provide CLAUDE.md (project conventions) from template.
+# Home installs never touch ~/CLAUDE.md.
+if [ -n "$root" ] && [ -f CLAUDE.template.md ]; then
+  if [ -e "$root/CLAUDE.md" ]; then
+    printf 'CLAUDE.md already exists in %s. overwrite with template? [y/N] ' "$root"
+    read -r ans
+    if [ "$ans" = "y" ] || [ "$ans" = "Y" ]; then
+      cp CLAUDE.template.md "$root/CLAUDE.md"
+      echo "  installed CLAUDE.md (project conventions)"
+    else
+      echo "  kept existing CLAUDE.md (merge conventions from CLAUDE.template.md if needed)"
+    fi
+  else
+    cp CLAUDE.template.md "$root/CLAUDE.md"
+    echo "  installed CLAUDE.md (project conventions)"
+  fi
+fi
 echo "done. installed to: $dest"
 echo "restart Claude Code (in the project directory, if project install) to pick up the skills."
 echo "try: python3 $dest/cq-review/cq-metrics.py <your-source-dir>"

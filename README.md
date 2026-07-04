@@ -22,11 +22,15 @@ tar xzf ai-dev-skills-20260704.tgz
 cd ai-dev-skills
 ./install.sh /path/to/your-repo     # <repo>/.claude/skills/ にコピー
 cd /path/to/your-repo
-git add .claude/skills
+git add .claude/skills CLAUDE.md
 git commit -m "Add AI dev skills"
 ```
 
-Skill は Markdown なので、チームの規約に合わせた変更もコミットで共有できます。
+プロジェクト導入では、**人間向けの運用規約をまとめた CLAUDE.md** もテンプレートから
+生成されます (docs/ = 現在の正、notes/ = 追記のみの記録、TODO.md = 消し込むリスト、
+トレース ID の説明など)。既存の CLAUDE.md がある場合は上書き前に確認され、
+残した場合は同梱の CLAUDE.template.md から必要な規約を手でマージできます。
+Skill も CLAUDE.md も Markdown なので、チームの規約に合わせた変更をコミットで共有できます。
 
 ### B. 自分のホームに導入する (個人で常用する場合)
 
