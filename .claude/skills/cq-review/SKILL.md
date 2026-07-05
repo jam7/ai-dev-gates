@@ -43,6 +43,11 @@ python3 $SKILL/git-cochange.py [--commits 3000|--since "1 year ago"] [--path SUB
 - 結合度・凝集度の観点 (checklist 2 節) をレビューするとき、対象ファイルが
   上位ペアに出ていないか確認する。上位ペアの共通化・知識の一元化は指摘候補
 
+`$SKILL/cpp-coupling.py` — compile_commands.json (cmake
+-DCMAKE_EXPORT_COMPILE_COMMANDS=ON で生成) の include グラフから、モジュール間の
+循環依存・不安定度 I=Ce/(Ca+Ce)・fan-in を出す。設計レビュー (spec-dev ゲート G2) の
+「結合度が妥当か」の定量根拠に使う。使い方は --help と handoff/coupling-kit-README.md
+
 ## 手順
 
 1. **範囲確定**: レビュー対象 (差分のあるファイル、または指定ディレクトリ) を決める。
