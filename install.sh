@@ -29,6 +29,7 @@ fi
 mkdir -p "$dest"
 for d in "$src"/*/; do
   name=$(basename "$d")
+  saved=""
   if [ -e "$dest/$name" ]; then
     printf '%s already exists in %s. overwrite? [y/N] ' "$name" "$dest"
     read -r ans
@@ -36,9 +37,30 @@ for d in "$src"/*/; do
       echo "  skipped $name"
       continue
     fi
+    # keep team-managed rule files (rules/*.md); only *.template.md is refreshed
+    if [ -d "$dest/$name/rules" ]; then
+      saved=$(mktemp -d)
+      find "$dest/$name/rules" -maxdepth 1 -name '*.md' \
+        ! -name '*.template.md' -exec cp {} "$saved"/ \;
+    fi
     rm -rf "$dest/$name"
   fi
   cp -r "$d" "$dest/$name"
+  if [ -n "$saved" ]; then
+    # update install: restore the team's rule set exactly as it was
+    mkdir -p "$dest/$name/rules"
+    find "$dest/$name/rules" -maxdepth 1 -name '*.md' \
+      ! -name '*.template.md' -delete 2>/dev/null || true
+    cp "$saved"/* "$dest/$name/rules"/ 2>/dev/null || true
+    rm -rf "$saved"
+  else
+    # fresh install: activate default rules from templates
+    for t in "$dest/$name"/rules/*.template.md; do
+      [ -f "$t" ] || continue
+      m="${t%.template.md}.md"
+      [ -e "$m" ] || cp "$t" "$m"
+    done
+  fi
   echo "  installed $name"
 done
 # project install only: provide CLAUDE.md (project conventions) from template.
