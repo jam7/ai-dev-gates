@@ -66,9 +66,10 @@ python3 ~/.claude/skills/cq-review/cq-metrics.py src/
  要件 ──→ 仕様 ──→ 設計 ──→ 実装 ──→ レビュー ──→ テスト
  └────────── spec-dev (工程ゲート + トレースID) ──────────┘
                             │           │           │
-                        fix-loop   cq-review   triage
-                       (試行錯誤の  (品質レビュー   (テスト失敗
-                        暴走防止)    の自動化)      の分析)
+                      coding-rules   cq-review    triage
+                      + fix-loop   (品質レビュー  (テスト失敗
+                     (規約の適用と    の自動化)     の分析)
+                      試行錯誤の暴走防止)
                             │
               self-review (AI成果物にレビューパックを添付)
 
@@ -252,6 +253,58 @@ Claude: 承知しました。2 件なので fix-loop は使わず、修正後に
 python3 ~/.claude/skills/cq-review/cq-metrics.py --max-nest 4 src/
 ```
 
+### 結合度も測る — git-cochange.py / cpp-coupling.py
+
+cq-metrics.py が見るのは 1 ファイル内の形だけです。「触ると別の場所が壊れる」という
+**結合の問題はファイルをまたぐ**ので、cq-review には補助ツールが 2 つ同梱されています。
+どちらも読み取り専用・stdlib のみで、cq-review の意味的レビューの材料になります。
+
+**(1) git-cochange.py — 履歴から隠れた結合を探す** (準備不要、これだけで動く)
+
+```bash
+python3 ~/.claude/skills/cq-review/git-cochange.py --commits 3000 .
+```
+
+```text
+== Co-change pairs (support >= 3, confidence >= 0.50) ==
+    7x  conf 0.88  src/parser.cpp(8)  <->  src/codegen/emit.cpp(7)
+    5x  conf 1.00  src/opts.cpp(5)  <->  docs/options.md(5)
+```
+
+support = 同一コミットで一緒に変わった回数、confidence = 片方が変わったとき
+もう片方も変わる確率です。**別ディレクトリ・別名なのに confidence が高いペアが
+暗黙の結合の候補** (重複した知識、共有された前提、片方だけ直すと壊れる関係)。
+型や include には現れないので、静的解析では見つかりません。
+自明なペア (同一ディレクトリ、foo.h/foo.cpp) と巨大コミットは既定で除外済みです。
+
+**(2) cpp-coupling.py — include グラフからモジュール間の依存を測る** (C/C++)
+
+`compile_commands.json` が必要です (`cmake -B build -DCMAKE_EXPORT_COMPILE_COMMANDS=ON`。
+configure だけで生成され、ビルドは不要)。
+
+```bash
+python3 ~/.claude/skills/cq-review/cpp-coupling.py --root src --module-depth 2 \
+        build/compile_commands.json
+```
+
+```text
+== Module cycles: 1 ==
+  src/parser <-> src/sema
+== Module metrics (top fan-in) ==
+  src/support                    Ca=52  Ce=2   I=0.04
+  src/sema                       Ca=18  Ce=21  I=0.54 [cycle]
+```
+
+- **Module cycles** (モジュール間の循環依存) が設計上の最優先課題です
+- I = 不安定度 = Ce/(Ca+Ce)。**Ca が大きくても I ≈ 0 なら健全**
+  (安定したものに皆が依存するのは正しい形)。危ないのは
+  「よく変わるもの (I が高い) に多数がぶら下がっている」パターンです
+- `--module-depth` はモジュール = ディレクトリの深さ。まず 2 で実行し、
+  出てくる名前が「設計単位」として自然になる深さに調整します
+
+設計レビュー (spec-dev のゲート「結合度が妥当か」) の定量的な根拠としても使えます。
+両ツールの詳細は `--help` を参照してください。
+
 ## 5. コーディング規約を守らせる — coding-rules
 
 **困りごと**: AI に実装を頼むと、動くけれど規約や Clean Code の原則から外れたコードが
@@ -379,9 +432,12 @@ Claude: fix-loop で進めます。ガードセット: config 関連テスト全
 cd /path/to/your-repo
 python3 .claude/skills/cq-review/cq-metrics.py src/   # 現状把握
 python3 .claude/skills/cq-review/cq-metrics.py --csv --label baseline src/ >> cq-trend.csv
+python3 .claude/skills/cq-review/git-cochange.py --commits 3000 .   # 隠れた結合
 ```
 
 2 行目の CSV が「改善前」の記録になります。以後コミットごとに追記すると改善が数字で残ります。
+3 行目の git-cochange は既存プロジェクトでこそ効きます (履歴が長いほど精度が上がる)。
+「離れているのに毎回一緒に変わるペア」は、次のステップでバッチにまとめる単位の候補です。
 
 ### ステップ 2: 修正方針を決める (Claude と一緒に)
 
@@ -464,7 +520,8 @@ Skill 側に「破壊的操作・ベースライン更新・修正計画は人�
 そこだけあなたの判断で裁定してください。むしろ低確度を断定してこないことが重要です。
 
 **Q. 秘密情報は大丈夫?**
-スクリプト (cq-metrics.py, parse-lit-log.py) は完全ローカルで外部送信なし。
+同梱スクリプト 5 つ (cq-metrics.py, git-cochange.py, cpp-coupling.py,
+trace-matrix.py, parse-lit-log.py) は完全ローカル・読み取り専用で外部送信なし。
 Claude Code 自体の利用ポリシーは所属組織のルールに従ってください。
 
 ## ファイル一覧
@@ -473,14 +530,20 @@ Claude Code 自体の利用ポリシーは所属組織のルールに従って�
 ~/.claude/skills/
 ├── spec-dev/       SKILL.md + trace-matrix.py + templates/ (requirements/spec/design の雛形)
 ├── fix-loop/       SKILL.md (台帳の書式もここに)
+├── coding-rules/   SKILL.md + rules/ (00-principles / 10-complexity / 90-rule-format)
+├── cq-review/      SKILL.md + cq-metrics.py + git-cochange.py + cpp-coupling.py
+│                   + references/checklist.md
 ├── self-review/    SKILL.md + references/compiler-checklist.md
-├── cq-review/   SKILL.md + cq-metrics.py + references/checklist.md
 ├── triage/         SKILL.md + parse-lit-log.py
 └── rework/         SKILL.md
 ```
 
-- スクリプト 3 つは Python 3.6+ 標準ライブラリのみ。単体実行可 (`--help` あり)。
+- スクリプト 5 つは Python 3.6+ 標準ライブラリのみ。単体実行可 (`--help` あり)。
   cq-metrics.py は `--csv --label <commit>` で品質推移の記録もできる
+  (git-cochange.py / cpp-coupling.py も `--csv` 対応)
+- `coding-rules/rules/` には `*.md` (有効なルール) と `*.template.md` (デフォルトの原本) が
+  並びます。install.sh で更新するとき `*.md` はチームのものとして保持され、
+  `*.template.md` だけが差し替わります
 - おまけ: パッケージ内の `prompts/weekly-report.md` — git log と作業記録から
   週報ドラフトを作るコピペ用プロンプト (Skill ではないので、使うとき中身を貼る)
 
