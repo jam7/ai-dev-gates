@@ -31,13 +31,19 @@ description: Prepare for a context compaction. Decide what must survive, persist
 
 出せるなら出す。圧縮引数は短いほど劣化しない。
 
+行き先は下表を目安にするが、**そのプロジェクトが既に使っている場所が優先**。
+CLAUDE.md にディレクトリ規約があればそれに従い、無ければ既存ファイルの置き方に合わせる。
+
 | 情報の種類 | 行き先 |
 |---|---|
-| 設計判断・却下した案の理由 | `docs/<feature>/design.md` の ADR ブロック |
-| 進捗・残タスク | `TODO.md` (プロジェクトの規約に従う) |
-| 調査の生記録 | `notes/reviews/` `notes/fix-sessions/` |
+| 設計判断・却下した案の理由 | `docs/adr/` か `docs/<feature>/design.md` の ADR ブロックなど、PJ で ADR を書いている場所 |
+| 進捗・残タスク | `TODO.md` / `notes/TODO.md` / issue トラッカーなど、PJ の残タスク置き場 |
+| 調査の生記録 | `notes/` 配下 (`notes/reviews/` `notes/fix-sessions/` など) |
 | ユーザーの好み・繰り返し効く指示 | memory (`type: feedback` / `user`) |
 | 継続中の目標・制約 | memory (`type: project`) |
+
+置き場所が無い種類の情報なら、無理に新しいディレクトリを作らず圧縮引数に残す
+(1 項目のために規約を増やすほうが後で害になる)。
 
 **実データ (実パス・実機ログ・ホスト名) はプロジェクトの規約に従う**。
 公開 repo に書かない取り決めがあるなら、圧縮引数にも書かない
