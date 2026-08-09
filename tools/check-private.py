@@ -72,9 +72,17 @@ MEDIA = re.compile(r'\.(pdf|zip|cbz|rar|jpe?g|png|gif|webp|mp4|mkv|avi|webm'
 STRUCTURAL = [
     # Case-sensitive on purpose: `/Home/End` is a pair of keys and
     # `pixiv.net/users/123` is a URL, and both matched when it was not.
-    (re.compile(r'(?<![\w/.])/home/[a-z0-9_.-]+'), 'absolute home path'),
-    (re.compile(r'(?<![\w/.])/Users/[A-Za-z0-9_.-]+'), 'absolute home path'),
-    (re.compile(r'[A-Z]:\\\\?Users\\\\?[a-z0-9_.-]+', re.I), 'absolute home path'),
+    #
+    # The user name has to start with a letter, digit or underscore. Writing
+    # `/home/...` in documentation is how you say "somebody's home", and it is
+    # not a leak; a name beginning with a dot or a dash is not a user either.
+    # Anything after the first character may be a dot, so /home/j.doe still
+    # matches.
+    (re.compile(r'(?<![\w/.])/home/[a-z0-9_][a-z0-9_.-]*'), 'absolute home path'),
+    (re.compile(r'(?<![\w/.])/Users/[A-Za-z0-9_][A-Za-z0-9_.-]*'),
+     'absolute home path'),
+    (re.compile(r'[A-Z]:\\\\?Users\\\\?[a-z0-9_][a-z0-9_.-]*', re.I),
+     'absolute home path'),
     (re.compile(r'\b192\.168\.\d{1,3}\.\d{1,3}\b'), 'private IP address'),
     (re.compile(r'\b10\.\d{1,3}\.\d{1,3}\.\d{1,3}\b'), 'private IP address'),
     (re.compile(r'\b172\.(1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3}\b'), 'private IP address'),
