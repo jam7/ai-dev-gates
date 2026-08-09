@@ -26,6 +26,12 @@ python3 $SKILL/cq-metrics.py [options] <file-or-dir>...
 関数長・ネスト深さ・引数の数・重複ブロックを検出する。**ヒューリスティックな候補提示**であり
 違反判定ではない (例: 設定列挙だけの長い初期化関数は問題でないことが多い)。
 
+重複検出は import / include / use / using / require / package の宣言行を除外する
+(2026-08-09 追加)。同じパッケージ群を使うファイル同士は import 節が丸ごと一致するが、
+どの言語でも共通化できないため、そのまま数えると指摘にならないノイズが上位を占める。
+Go・Scala・Python の括弧で囲む複数行 import はブロックごと除外する。
+C# の `using var x = ...` や Rust の `use_cache(x)` は宣言ではないので実コードとして数える。
+
 ## 補助ツール: git-cochange.py (隠れ結合の検出)
 
 `$SKILL/git-cochange.py` — git 履歴から「離れた場所にあるのに同一コミットで

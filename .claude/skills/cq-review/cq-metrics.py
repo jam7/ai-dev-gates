@@ -39,6 +39,57 @@ CONTROL_KEYWORDS = {"if", "else", "for", "while", "do", "switch", "case",
 NAME_RE = re.compile(r"([A-Za-z_][\w:~.]*)\s*\($")
 GO_FUNC_RE = re.compile(r"^\s*func\s*(?:\([^)]*\)\s*)?([A-Za-z_]\w*)\s*\(")
 
+# Import declarations are near-identical between files by their nature: two
+# files needing the same five packages name them the same way, in the order the
+# formatter chose, and no language lets that list be shared. Reporting it as
+# duplication buries the real findings -- a run of eight imports is far more
+# common than a run of eight duplicated statements.
+# "use" and "using" also begin real statements -- Rust has use_cache(x), C# has
+# "using var f = File.Open(p)" and "using (var f = ...)" -- so those two are
+# matched only in their declaration form: one dotted name, optionally aliased,
+# ending the line. Anything with a call or a second identifier in it is code.
+IMPORT_RE = re.compile(
+    r"^(?:"
+    r"import\b"                              # Java, Kotlin, Swift, Python, JS, Go
+    r"|from\s+\S+\s+import\b"                 # Python
+    r"|use\s+[\w:{*\\][\w:{}*,\s\\]*;"         # Rust, PHP (PHP separates with \)
+    r"|using\s+[\w.:<>]+\s*(?:=\s*[\w.:<>]+\s*)?;"  # C#, C++
+    r"|require\s*\(?\s*[\"']"                 # Ruby, Node
+    r"|package\s+[\w.]"                       # Go, Java, Kotlin package declaration
+    r")")
+# Go and Scala group imports in a parenthesised block, and Python wraps long
+# ones the same way. Their lines are bare paths or names, so they match nothing
+# on their own and the block has to be tracked.
+IMPORT_BLOCK_OPEN_RE = re.compile(
+    r"^(?:import\s*\(|from\s+\S+\s+import\s*\()\s*$")
+IMPORT_BLOCK_CLOSE_RE = re.compile(r"^\)")
+
+
+def significant_lines(lines):
+    """The lines worth comparing for duplication, with their numbers.
+
+    Drops blanks, preprocessor directives, punctuation-only lines and import
+    declarations. What is left is code that a person wrote and could have
+    written differently.
+    """
+    out = []
+    in_import_block = False
+    for lineno, line in enumerate(lines, 1):
+        s = re.sub(r"\s+", " ", line.strip())
+        if in_import_block:
+            if IMPORT_BLOCK_CLOSE_RE.match(s):
+                in_import_block = False
+            continue
+        if IMPORT_BLOCK_OPEN_RE.match(s):
+            in_import_block = True
+            continue
+        if not s or len(s) <= 3 or s.startswith("#"):
+            continue
+        if re.fullmatch(r"[{}();,]*", s) or IMPORT_RE.match(s):
+            continue
+        out.append((lineno, s))
+    return out
+
 
 def strip_code(text, keep_strings=False):
     """Blank out comments (and, unless keep_strings, string/char literal
@@ -230,16 +281,10 @@ def analyze_file(path, opts, dup_index):
                 header_buf += c
         header_buf += " "
 
-    # Duplicate detection on significant normalized lines. Strings are kept
-    # (blanking them would make distinct lines look identical) and
-    # preprocessor lines are skipped (#include runs are trivially similar).
+    # Duplicate detection on significant normalized lines. Strings are kept:
+    # blanking them would make distinct lines look identical.
     if opts["dup_window"] > 0:
-        dup_lines = strip_code(raw, keep_strings=True).splitlines()
-        sig = [(ln, re.sub(r"\s+", " ", l.strip()))
-               for ln, l in enumerate(dup_lines, 1)]
-        sig = [(ln, s) for ln, s in sig
-               if s and len(s) > 3 and not s.startswith("#")
-               and not re.fullmatch(r"[{}();,]*", s)]
+        sig = significant_lines(strip_code(raw, keep_strings=True).splitlines())
         w = opts["dup_window"]
         for k in range(len(sig) - w + 1):
             key = "\n".join(s for _, s in sig[k:k + w])
