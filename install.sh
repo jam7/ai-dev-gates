@@ -65,6 +65,16 @@ if [ "$hooks" -eq 1 ]; then
   fi
 fi
 
+# Installing into the repository that holds the sources: skills, CLAUDE.md and
+# tools/ are already there and are the original, so copying them onto
+# themselves would only destroy them. .githooks/ is still worth placing, since
+# that is a different directory from the githooks/ they come from.
+mkdir -p "$dest"
+self=0
+if [ -n "$root" ] && [ "$(cd "$root" && pwd -P)" = "$(pwd -P)" ]; then
+  self=1
+fi
+
 # ---- check every destination before writing anything --------------------
 conflicts=""
 add_conflict() {
@@ -72,21 +82,29 @@ add_conflict() {
 "
 }
 
-for d in "$src"/*/; do
-  if [ -e "$dest/$(basename "$d")" ]; then
-    add_conflict "$dest/$(basename "$d")"
-  fi
-done
-if [ -n "$root" ] && [ -f CLAUDE.template.md ] && [ -e "$root/CLAUDE.md" ]; then
-  add_conflict "$root/CLAUDE.md"
-fi
-if [ "$hooks" -eq 1 ]; then
-  for f in githooks/* tools/*; do
-    case "$f" in githooks/*) sub=.githooks ;; *) sub=tools ;; esac
-    if [ -e "$root/$sub/$(basename "$f")" ]; then
-      add_conflict "$root/$sub/$(basename "$f")"
+if [ "$self" -eq 0 ]; then
+  for d in "$src"/*/; do
+    if [ -e "$dest/$(basename "$d")" ]; then
+      add_conflict "$dest/$(basename "$d")"
     fi
   done
+  if [ -n "$root" ] && [ -f CLAUDE.template.md ] && [ -e "$root/CLAUDE.md" ]; then
+    add_conflict "$root/CLAUDE.md"
+  fi
+fi
+if [ "$hooks" -eq 1 ]; then
+  for f in githooks/*; do
+    if [ -e "$root/.githooks/$(basename "$f")" ]; then
+      add_conflict "$root/.githooks/$(basename "$f")"
+    fi
+  done
+  if [ "$self" -eq 0 ]; then
+    for f in tools/*; do
+      if [ -e "$root/tools/$(basename "$f")" ]; then
+        add_conflict "$root/tools/$(basename "$f")"
+      fi
+    done
+  fi
 fi
 
 if [ -n "$conflicts" ] && [ "$force" -eq 0 ]; then
@@ -97,8 +115,11 @@ if [ -n "$conflicts" ] && [ "$force" -eq 0 ]; then
 fi
 
 # ---- write ---------------------------------------------------------------
-mkdir -p "$dest"
+if [ "$self" -eq 1 ]; then
+  echo "  skills already here (installing into their own repository)"
+fi
 for d in "$src"/*/; do
+  [ "$self" -eq 1 ] && break
   name=$(basename "$d")
   saved=""
   if [ -e "$dest/$name" ]; then
@@ -131,7 +152,7 @@ done
 
 # project install only: provide CLAUDE.md (project conventions) from template.
 # Home installs never touch ~/CLAUDE.md.
-if [ -n "$root" ] && [ -f CLAUDE.template.md ]; then
+if [ -n "$root" ] && [ -f CLAUDE.template.md ] && [ "$self" -eq 0 ]; then
   cp CLAUDE.template.md "$root/CLAUDE.md"
   echo "  installed CLAUDE.md (project conventions)"
 fi
@@ -140,10 +161,12 @@ if [ "$hooks" -eq 1 ]; then
   mkdir -p "$root/.githooks" "$root/tools"
   cp githooks/pre-commit githooks/pre-push "$root/.githooks/"
   chmod +x "$root/.githooks/pre-commit" "$root/.githooks/pre-push"
-  cp tools/check-metrics.py tools/check-private.py "$root/tools/"
-  cp tools/cq-baseline.template.txt tools/test-vocabulary.template.txt \
-     "$root/tools/"
-  chmod +x "$root/tools/check-metrics.py" "$root/tools/check-private.py"
+  if [ "$self" -eq 0 ]; then
+    cp tools/check-metrics.py tools/check-private.py "$root/tools/"
+    cp tools/cq-baseline.template.txt tools/test-vocabulary.template.txt \
+       "$root/tools/"
+    chmod +x "$root/tools/check-metrics.py" "$root/tools/check-private.py"
+  fi
   # Declaration files hold the project's own judgements, so they are created
   # when missing and never replaced -- not even by --force.
   if [ ! -e "$root/tools/cq-baseline.txt" ]; then

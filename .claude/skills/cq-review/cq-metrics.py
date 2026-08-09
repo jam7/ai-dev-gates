@@ -1,10 +1,15 @@
 #!/usr/bin/env python3
-"""Code quality metrics for brace-style languages (C/C++/Go/Java/JS/Rust etc).
+"""Code quality metrics for brace-style languages (C/C++/Go/Java/JS/Rust etc)
+and Python.
 
 Heuristic candidate finder for code review: long functions, deep nesting,
 long parameter lists, duplicated code blocks. It intentionally trades parsing
 precision for zero dependencies — treat results as review candidates, not
 verdicts. Stdlib only, Python 3.6+.
+
+Blocks are counted by brace depth, or by indentation level in Python. Neither
+is a parse: a `def` is found by pattern and its body is what is indented under
+it, the same way a `{` opens a block elsewhere.
 
 Usage:
   cq-metrics.py [options] <file-or-dir>...
@@ -30,7 +35,9 @@ import sys
 
 DEFAULT_EXTS = (".c", ".h", ".cc", ".hh", ".cpp", ".hpp", ".cxx", ".go",
                 ".java", ".js", ".ts", ".rs", ".m", ".mm", ".dart", ".kt",
-                ".swift", ".cs")
+                ".swift", ".cs", ".py")
+# Languages whose blocks are indentation rather than braces.
+INDENT_EXTS = (".py",)
 CONTROL_KEYWORDS = {"if", "else", "for", "while", "do", "switch", "case",
                     "return", "catch", "struct", "class", "enum", "union",
                     "namespace", "typedef", "using", "extern", "select",
@@ -38,6 +45,11 @@ CONTROL_KEYWORDS = {"if", "else", "for", "while", "do", "switch", "case",
                     "import", "package"}
 NAME_RE = re.compile(r"([A-Za-z_][\w:~.]*)\s*\($")
 GO_FUNC_RE = re.compile(r"^\s*func\s*(?:\([^)]*\)\s*)?([A-Za-z_]\w*)\s*\(")
+PY_DEF_RE = re.compile(r"^\s*(?:async\s+)?def\s+([A-Za-z_]\w*)\s*\(")
+PY_CLASS_RE = re.compile(r"^\s*class\s+([A-Za-z_]\w*)")
+# The receiver is implicit in the brace languages, so it is not counted here
+# either: a 5-parameter method should read the same in both.
+PY_RECEIVER_RE = re.compile(r"^\s*(?:self|cls)\s*(?:[,:]|$)")
 
 # Import declarations are near-identical between files by their nature: two
 # files needing the same five packages name them the same way, in the order the
@@ -102,6 +114,16 @@ def strip_code(text, keep_strings=False):
         c = text[i]
         nxt = text[i + 1] if i + 1 < n else ""
         if state is None:
+            if c == "#":
+                # A comment in Python and a directive in C, and both are
+                # dropped by every consumer below -- but leaving it alone
+                # meant an apostrophe in a Python comment (`# Go's raw
+                # strings`) opened a string that swallowed the rest of the
+                # file.
+                state = "line"
+                i += 1
+                out.append(" ")
+                continue
             if c == "/" and nxt == "/":
                 state = "line"
                 i += 2
@@ -226,6 +248,99 @@ def param_group(header):
     return first_paren_group(header)
 
 
+def indent_of(line):
+    expanded = line.expandtabs(8)
+    return len(expanded) - len(expanded.lstrip())
+
+
+def bracket_balance(text):
+    """How many brackets this line leaves open. Strings are already blank."""
+    return (text.count("(") + text.count("[") + text.count("{")
+            - text.count(")") - text.count("]") - text.count("}"))
+
+
+def py_params(header):
+    """Parameter count for a def header, without the implicit receiver."""
+    group = first_paren_group(header)
+    if group is None:
+        return 0
+    count = split_params(group)
+    if count and PY_RECEIVER_RE.match(group):
+        count -= 1
+    return count
+
+
+def close_python(func, functions):
+    func["loc"] = func["last"] - func["line"] + 1
+    functions.append(func)
+
+
+def analyze_python(lines):
+    """Functions in an indentation-based file.
+
+    An indentation column that is deeper than the one before it opens a block,
+    exactly as `{` does elsewhere, so the depth reported means the same thing
+    in both. Lines continuing an unclosed bracket or a backslash are laid out
+    for readability rather than nested, and are skipped.
+    """
+    functions, opened, scopes, levels = [], [], [], []
+    header, pending, cont = "", 0, False
+
+    for lineno, line in enumerate(lines, 1):
+        stripped = line.strip()
+        if not stripped:
+            continue
+        if pending > 0 or cont:
+            if header:
+                header += " " + stripped
+                if bracket_balance(header) <= 0:
+                    opened[-1]["params"] = py_params(header)
+                    header = ""
+            for func in opened:
+                func["last"] = lineno
+            pending += bracket_balance(stripped)
+            cont = stripped.endswith("\\")
+            continue
+
+        col = indent_of(line)
+        while len(levels) > 1 and col < levels[-1]:
+            levels.pop()
+        if not levels or col > levels[-1]:
+            levels.append(col)
+        level = len(levels) - 1
+        while opened and col <= opened[-1]["indent"]:
+            close_python(opened.pop(), functions)
+        while scopes and col <= scopes[-1][0]:
+            scopes.pop()
+        pending = bracket_balance(stripped)
+        cont = stripped.endswith("\\")
+
+        found = PY_DEF_RE.match(line)
+        if found:
+            name = ".".join([s[1] for s in scopes] + [found.group(1)])
+            opened.append({"name": name, "line": lineno, "indent": col,
+                           "level": level, "params": 0, "max_depth": 0,
+                           "last": lineno})
+            scopes.append((col, found.group(1)))
+            header = stripped
+            if pending <= 0:
+                opened[-1]["params"] = py_params(header)
+                header = ""
+            continue
+
+        klass = PY_CLASS_RE.match(line)
+        if klass:
+            scopes.append((col, klass.group(1)))
+            continue
+        for func in opened:
+            func["last"] = lineno
+            if level - func["level"] - 1 > func["max_depth"]:
+                func["max_depth"] = level - func["level"] - 1
+    for func in opened:
+        close_python(func, functions)
+    return functions
+
+
 def analyze_file(path, opts, dup_index):
     try:
         with open(path, "r", encoding="utf-8", errors="replace") as f:
@@ -233,8 +348,28 @@ def analyze_file(path, opts, dup_index):
     except OSError as e:
         sys.stderr.write("error: cannot read %s: %s\n" % (path, e))
         return None
-    text = strip_code(raw)
-    lines = text.splitlines()
+    if os.path.splitext(path)[1] in INDENT_EXTS:
+        functions = analyze_python(strip_code(raw).splitlines())
+    else:
+        functions = analyze_braces(strip_code(raw).splitlines())
+    add_duplicates(path, raw, opts, dup_index)
+    return functions
+
+
+def add_duplicates(path, raw, opts, dup_index):
+    """Record every window of significant lines, for cross-file comparison."""
+    if opts["dup_window"] <= 0:
+        return
+    # Strings are kept: blanking them would make distinct lines look identical.
+    sig = significant_lines(strip_code(raw, keep_strings=True).splitlines())
+    w = opts["dup_window"]
+    for k in range(len(sig) - w + 1):
+        key = "\n".join(s for _, s in sig[k:k + w])
+        dup_index.setdefault(key, []).append((path, sig[k][0]))
+
+
+def analyze_braces(lines):
+    """Functions in a brace-delimited file."""
     functions = []
     depth = 0
     header_buf = ""
@@ -280,15 +415,6 @@ def analyze_file(path, opts, dup_index):
                     header_line = lineno
                 header_buf += c
         header_buf += " "
-
-    # Duplicate detection on significant normalized lines. Strings are kept:
-    # blanking them would make distinct lines look identical.
-    if opts["dup_window"] > 0:
-        sig = significant_lines(strip_code(raw, keep_strings=True).splitlines())
-        w = opts["dup_window"]
-        for k in range(len(sig) - w + 1):
-            key = "\n".join(s for _, s in sig[k:k + w])
-            dup_index.setdefault(key, []).append((path, sig[k][0]))
     return functions
 
 

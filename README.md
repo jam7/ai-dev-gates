@@ -276,6 +276,11 @@ Claude: 承知しました。2 件なので fix-loop は使わず、修正後に
 python3 ~/.claude/skills/cq-review/cq-metrics.py --max-nest 4 src/
 ```
 
+対象は波括弧系の言語 (C/C++/Go/Java/JS/TS/Rust/Dart/Kotlin/Swift/C#) と
+**Python** です。Python もパーサーは使わず、`def` を正規表現で拾って本体を
+インデントの段数で数えます。他言語と同じ「ざっくり測る」精度で、
+`elif` の連鎖は波括弧の `} else if (...) {` と同様に 1 段と数えます。
+
 ### 結合度も測る — git-cochange.py / cpp-coupling.py
 
 cq-metrics.py が見るのは 1 ファイル内の形だけです。「触ると別の場所が壊れる」という
@@ -522,7 +527,7 @@ long src/big.go::Big
 
 ### もう 1 つのゲート: 私的データの流出防止
 
-`tools/check-private.py` は、絶対パス (`/home/...`)・プライベート IP・長い数値 ID を
+`tools/check-private.py` は、ホーム配下の絶対パス・プライベート IP・長い数値 ID を
 全ファイルで弾きます。さらに**語彙リスト方式**の検査があります: テストデータや
 ドキュメントの例に出てくる「内容らしきもの」(区切りを含むパス、メディアファイル名、
 CJK 文字列) は、`tools/test-vocabulary.txt` に宣言された名前だけで組み立てる、という
