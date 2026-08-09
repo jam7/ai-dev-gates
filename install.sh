@@ -158,26 +158,37 @@ if [ -n "$root" ] && [ -f CLAUDE.template.md ] && [ "$self" -eq 0 ]; then
 fi
 
 if [ "$hooks" -eq 1 ]; then
-  mkdir -p "$root/.githooks" "$root/tools"
-  cp githooks/pre-commit githooks/pre-push "$root/.githooks/"
-  chmod +x "$root/.githooks/pre-commit" "$root/.githooks/pre-push"
-  if [ "$self" -eq 0 ]; then
+  mkdir -p "$root/tools"
+  # Installing into the repository the hooks come from: point git at them
+  # where they already are, rather than keeping a second copy in step.
+  if [ "$self" -eq 1 ]; then
+    hookdir=githooks
+  else
+    hookdir=.githooks
+    mkdir -p "$root/.githooks"
+    cp githooks/pre-commit githooks/pre-push "$root/.githooks/"
+    chmod +x "$root/.githooks/pre-commit" "$root/.githooks/pre-push"
     cp tools/check-metrics.py tools/check-private.py "$root/tools/"
     cp tools/cq-baseline.template.txt tools/test-vocabulary.template.txt \
-       "$root/tools/"
+       tools/gate.conf.template "$root/tools/"
     chmod +x "$root/tools/check-metrics.py" "$root/tools/check-private.py"
   fi
-  # Declaration files hold the project's own judgements, so they are created
-  # when missing and never replaced -- not even by --force.
+  # The project's own files: created when missing and never replaced, not even
+  # by --force. gate.conf holds what this project measures, cq-baseline.txt the
+  # findings it has accepted; neither can be regenerated from here.
+  if [ ! -e "$root/tools/gate.conf" ]; then
+    cp tools/gate.conf.template "$root/tools/gate.conf"
+    echo "  created tools/gate.conf (what the gate measures here)"
+  fi
   if [ ! -e "$root/tools/cq-baseline.txt" ]; then
     cp tools/cq-baseline.template.txt "$root/tools/cq-baseline.txt"
     echo "  created tools/cq-baseline.txt (empty declaration file)"
   fi
-  git -C "$root" config core.hooksPath .githooks
-  echo "  installed .githooks/ and tools/ (core.hooksPath set)"
+  git -C "$root" config core.hooksPath "$hookdir"
+  echo "  hooks enabled from $hookdir/ (core.hooksPath set)"
   echo
   echo "next, in $root:"
-  echo "  1. set ext= and scope= at the top of .githooks/pre-commit"
+  echo "  1. set ext= and scope= in tools/gate.conf"
   echo "  2. python3 tools/check-metrics.py --list   # what is flagged today"
   echo "     Nothing listed: you are done, the gate starts clean."
   echo "     Something listed: write the reason for each in"

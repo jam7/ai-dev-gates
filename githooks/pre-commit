@@ -11,20 +11,18 @@
 # Either script is skipped when it is not installed, so a project can take one
 # gate and not the other. Enable the hooks with:
 #   git config core.hooksPath .githooks   (install.sh --hooks does this)
-
-# --- project settings ----------------------------------------------------
-# Extensions the structure check measures, comma separated. Empty measures
-# every language cq-metrics.py knows. Narrow it to the production language and
-# a docs-only commit stays instant.
-ext=""
-# Directories it measures, space separated. Empty measures the whole
-# repository -- usually worth narrowing to production code (e.g. "src lib"),
-# since generated and vendored trees drown the signal.
-scope=""
-# -------------------------------------------------------------------------
+#
+# Nothing project-specific belongs in this file. What each project measures
+# lives in tools/gate.conf, which install.sh creates and never overwrites, so
+# that updating the hooks cannot silently reset it.
 
 root=$(git rev-parse --show-toplevel)
 status=0
+
+ext=""           # extensions to measure; empty means every language
+scope=""         # directories to measure; empty means the repository
+extra_checks=""  # anything else this project wants run before a commit
+[ -f "$root/tools/gate.conf" ] && . "$root/tools/gate.conf"
 
 # Whether anything in this commit is in a language the structure check covers.
 staged_has_code() {
@@ -45,6 +43,10 @@ if [ -f "$root/tools/check-metrics.py" ] && staged_has_code; then
     # a change is half-staged, but it is the code that will be there after the
     # commit, which is what the reason in the baseline has to be true of.
     python3 "$root/tools/check-metrics.py" $args || status=1
+fi
+
+if [ -n "$extra_checks" ] && staged_has_code; then
+    ( cd "$root" && eval "$extra_checks" ) || status=1
 fi
 
 exit "$status"
