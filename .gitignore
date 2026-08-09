@@ -1,2 +1,5 @@
 dist/
 __pycache__/
+
+# The work records live in a separate private repository, checked out here.
+notes/
