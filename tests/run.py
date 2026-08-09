@@ -1,0 +1,115 @@
+#!/usr/bin/env python3
+"""Golden-output tests for the bundled scripts.
+
+These record what the scripts do today, not what they ought to do. The point
+is to make a refactoring visible: if the output moves, either the change was
+wrong or the golden file needs updating for a reason you can name in the
+commit message. There is nothing else guarding these scripts.
+
+Each case fixes decisions that are otherwise invisible -- an elif chain counts
+as one level, a Go import block is not duplication, `using var x = ...` is a
+statement and not an import. Thresholds are pushed to their minimum in the
+inventory case so that every function is listed with its numbers, including
+the ones no threshold would flag.
+
+Usage:
+  tests/run.py            run every case, report differences, exit 1 on any
+  tests/run.py --update   rewrite the golden files from the current output
+  tests/run.py --list     print the case names
+"""
+import argparse
+import difflib
+import os
+import subprocess
+import sys
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+GOLDEN = os.path.join(ROOT, 'tests', 'golden')
+METRICS = '.claude/skills/cq-review/cq-metrics.py'
+TRACE = '.claude/skills/spec-dev/trace-matrix.py'
+
+CASES = [
+    # Every function with its length, depth and parameter count.
+    ('metrics-inventory', METRICS, [
+        '--max-func-lines', '0', '--max-nest', '-1', '--max-params', '-1',
+        '--dup-window', '0', '--top', '500', 'tests/fixtures']),
+    # What a normal run reports, including which duplicates survive the
+    # import filter.
+    ('metrics-defaults', METRICS, [
+        '--max-func-lines', '12', '--max-nest', '2', '--max-params', '4',
+        '--top', '500', 'tests/fixtures']),
+    # The duplicate window at its smallest: import blocks would flood this if
+    # they were not dropped.
+    ('metrics-dup-window-4', METRICS, [
+        '--max-func-lines', '999', '--max-nest', '99', '--max-params', '99',
+        '--dup-window', '4', '--top', '500', 'tests/fixtures']),
+    ('metrics-csv', METRICS, [
+        '--csv', '--label', 'fixture', 'tests/fixtures']),
+    ('trace-matrix', TRACE, [
+        '--code', 'tests/fixtures/trace/tests', 'tests/fixtures/trace/docs']),
+    ('trace-matrix-matrix', TRACE, [
+        '--matrix', '--code', 'tests/fixtures/trace/tests',
+        'tests/fixtures/trace/docs']),
+]
+
+
+def run_case(script, args):
+    """Output of one case, with the exit status recorded alongside it."""
+    done = subprocess.run([sys.executable, script] + args, cwd=ROOT,
+                          capture_output=True, text=True)
+    return '%s\n--- exit %d ---\n' % (
+        (done.stdout + done.stderr).rstrip('\n'), done.returncode)
+
+
+def golden_path(name):
+    return os.path.join(GOLDEN, name + '.txt')
+
+
+def update(cases):
+    os.makedirs(GOLDEN, exist_ok=True)
+    for name, script, args in cases:
+        with open(golden_path(name), 'w', encoding='utf-8') as f:
+            f.write(run_case(script, args))
+        print('wrote %s' % os.path.relpath(golden_path(name), ROOT))
+    return 0
+
+
+def compare(cases):
+    failed = 0
+    for name, script, args in cases:
+        actual = run_case(script, args)
+        path = golden_path(name)
+        if not os.path.exists(path):
+            print('MISSING GOLDEN  %s (run --update)' % name)
+            failed += 1
+            continue
+        with open(path, encoding='utf-8') as f:
+            expected = f.read()
+        if actual == expected:
+            print('ok    %s' % name)
+            continue
+        failed += 1
+        print('FAIL  %s' % name)
+        for line in difflib.unified_diff(
+                expected.splitlines(), actual.splitlines(),
+                'golden', 'actual', lineterm=''):
+            print('    %s' % line)
+    print('\n%d case(s), %d failed' % (len(cases), failed))
+    return 1 if failed else 0
+
+
+def main():
+    ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument('--update', action='store_true',
+                    help='rewrite the golden files from the current output')
+    ap.add_argument('--list', action='store_true', help='print case names')
+    args = ap.parse_args()
+    if args.list:
+        for name, _, _ in CASES:
+            print(name)
+        return 0
+    return update(CASES) if args.update else compare(CASES)
+
+
+if __name__ == '__main__':
+    sys.exit(main())

@@ -1,0 +1,10 @@
+== Definitions ==
+  R: 3, S: 3, D: 2, T: 1
+
+== Problems: 5 ==
+  R-03: not covered by any spec doc
+  S-02: no test references it
+  S-04: not covered by any design doc
+  S-04: no test references it
+  S-99: referenced (tests/fixtures/trace/docs/spec.md:10) but never defined - typo or missing section?
+--- exit 1 ---

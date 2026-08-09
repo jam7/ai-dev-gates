@@ -1,0 +1,24 @@
+== Definitions ==
+  R: 3, S: 3, D: 2, T: 1
+
+== Matrix ==
+| ID | defined at | referenced from |
+|---|---|---|
+| D-01 | tests/fixtures/trace/docs/design.md:3 | (none) |
+| D-02 | tests/fixtures/trace/docs/design.md:6 | (none) |
+| R-01 | tests/fixtures/trace/docs/requirements.md:3 | spec.md |
+| R-02 | tests/fixtures/trace/docs/requirements.md:6 | spec.md |
+| R-03 | tests/fixtures/trace/docs/requirements.md:9 | (none) |
+| S-01 | tests/fixtures/trace/docs/spec.md:3 | design.md, loader_test.md |
+| S-02 | tests/fixtures/trace/docs/spec.md:6 | design.md |
+| S-04 | tests/fixtures/trace/docs/spec.md:9 | (none) |
+| S-99 | (undefined) | spec.md |
+| T-01 | tests/fixtures/trace/tests/loader_test.md:3 | (none) |
+
+== Problems: 5 ==
+  R-03: not covered by any spec doc
+  S-02: no test references it
+  S-04: not covered by any design doc
+  S-04: no test references it
+  S-99: referenced (tests/fixtures/trace/docs/spec.md:10) but never defined - typo or missing section?
+--- exit 1 ---

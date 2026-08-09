@@ -1,0 +1,20 @@
+== Long functions (> 12 lines): 4 ==
+  tests/fixtures/braces/decls.cs:12  Read()  14 lines
+  tests/fixtures/braces/receiver.go:19  Load()  14 lines
+  tests/fixtures/braces/shapes.c:8  guarded()  14 lines
+  tests/fixtures/braces/twin.go:18  Save()  14 lines
+
+== Deep nesting (> 2 levels): 3 ==
+  tests/fixtures/python/shapes.py:31  Holder.deep()  depth 5
+  tests/fixtures/braces/shapes.c:8  guarded()  depth 4
+  tests/fixtures/python/tabs.py:1  tabbed()  depth 4
+
+== Long parameter lists (> 4 params): 1 ==
+  tests/fixtures/braces/shapes.c:25  many()  6 params
+
+== Duplicated blocks (>= 8 significant lines): 1 ==
+  ~9 lines x 2 sites: tests/fixtures/braces/receiver.go:21, tests/fixtures/braces/twin.go:20
+
+== Summary ==
+  files: 9, functions: 20, flagged: long=4 deep=3 params=1 dup-groups=1
+--- exit 0 ---

@@ -1,0 +1,15 @@
+== Long functions (> 999 lines): 0 ==
+
+== Deep nesting (> 99 levels): 0 ==
+
+== Long parameter lists (> 99 params): 0 ==
+
+== Duplicated blocks (>= 4 significant lines): 4 ==
+  ~5 lines x 2 sites: tests/fixtures/braces/receiver.go:21, tests/fixtures/braces/twin.go:20
+  ~5 lines x 2 sites: tests/fixtures/braces/receiver.go:24, tests/fixtures/braces/twin.go:23
+  ~5 lines x 2 sites: tests/fixtures/braces/receiver.go:27, tests/fixtures/braces/twin.go:26
+  ~4 lines x 2 sites: tests/fixtures/python/shapes.py:32, tests/fixtures/python/tabs.py:3
+
+== Summary ==
+  files: 9, functions: 20, flagged: long=0 deep=0 params=0 dup-groups=4
+--- exit 0 ---
