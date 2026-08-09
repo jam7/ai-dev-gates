@@ -1,0 +1,50 @@
+#!/bin/sh
+# Two gates, both of which exist because a rule written down was not enough.
+#
+# * check-private.py -- private data must not enter the history. Real paths
+#   leaked several times while the rule lived only in CLAUDE.md.
+# * check-metrics.py -- a new long function, deep nest, long parameter list or
+#   duplicated block has to be declared in tools/cq-baseline.txt with its
+#   reason. Written after a duplicate went in and was noticed only later, by a
+#   trend measurement taken after the push.
+#
+# Either script is skipped when it is not installed, so a project can take one
+# gate and not the other. Enable the hooks with:
+#   git config core.hooksPath .githooks   (install.sh --hooks does this)
+
+# --- project settings ----------------------------------------------------
+# Extensions the structure check measures, comma separated. Empty measures
+# every language cq-metrics.py knows. Narrow it to the production language and
+# a docs-only commit stays instant.
+ext=""
+# Directories it measures, space separated. Empty measures the whole
+# repository -- usually worth narrowing to production code (e.g. "src lib"),
+# since generated and vendored trees drown the signal.
+scope=""
+# -------------------------------------------------------------------------
+
+root=$(git rev-parse --show-toplevel)
+status=0
+
+# Whether anything in this commit is in a language the structure check covers.
+staged_has_code() {
+    [ -z "$ext" ] && return 0
+    pattern=$(printf '%s' "$ext" | sed 's/\./\\./g; s/,/$|/g; s/$/$/')
+    git diff --cached --name-only --diff-filter=ACM | grep -qE "$pattern"
+}
+
+if [ -f "$root/tools/check-private.py" ]; then
+    python3 "$root/tools/check-private.py" --staged || status=1
+fi
+
+if [ -f "$root/tools/check-metrics.py" ] && staged_has_code; then
+    args=""
+    for d in $scope; do args="$args --scope $d"; done
+    [ -n "$ext" ] && args="$args --ext $ext"
+    # Measures the working tree rather than the index. Not the same thing when
+    # a change is half-staged, but it is the code that will be there after the
+    # commit, which is what the reason in the baseline has to be true of.
+    python3 "$root/tools/check-metrics.py" $args || status=1
+fi
+
+exit "$status"

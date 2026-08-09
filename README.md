@@ -28,9 +28,10 @@ git commit -m "Add AI dev skills"
 
 プロジェクト導入では、**人間向けの運用規約をまとめた CLAUDE.md** もテンプレートから
 生成されます (docs/ = 現在の正、notes/ = 追記のみの記録、TODO.md = 消し込むリスト、
-トレース ID の説明など)。既存の CLAUDE.md がある場合は上書き前に確認され、
-残した場合は同梱の CLAUDE.template.md から必要な規約を手でマージできます。
-Skill も CLAUDE.md も Markdown なので、チームの規約に合わせた変更をコミットで共有できます。
+トレース ID の説明など)。Skill も CLAUDE.md も Markdown なので、チームの規約に
+合わせた変更をコミットで共有できます。
+
+`--hooks` を付けると、コミット時に自動で走るゲート (第 9 章) も一緒に入ります。
 
 ### B. 自分のホームに導入する (個人で常用する場合)
 
@@ -40,10 +41,25 @@ cd ai-dev-skills
 ./install.sh        # ~/.claude/skills/ にコピー。全プロジェクトで有効
 ```
 
-どちらも既存の同名 Skill がある場合は上書き前に確認を求めます。
 インストール後に Claude Code を起動 (プロジェクト導入ならそのリポジトリ内で) すると
 自動的に認識されます。両方に同名 Skill を入れると紛らわしいので、
 試行期間はプロジェクト側に寄せるのがおすすめです。
+
+### 上書きは起きない (更新のしかた)
+
+install.sh は**書き込む前に全ての配置先を調べ、1 つでも上書きになるならエラーで
+何もせず終了します**。チームが編集したルールや手を入れたフックを、再実行で
+失うことがないようにするためです。更新するときは `--force` を付けます。
+
+```bash
+./install.sh /path/to/your-repo --hooks --force
+```
+
+`--force` を付けても次の 2 つは保持されます。パッケージ側から再生成できない、
+チームの判断そのものだからです。
+
+- `coding-rules/rules/*.md` — チームが編集したルール (`*.template.md` だけ更新)
+- `tools/cq-baseline.txt` / `tools/test-vocabulary.txt` — 宣言ファイル (第 9 章)
 
 **パスの読み替え**: この README のコマンド例は `~/.claude/skills/...` (ホーム導入) で
 書いてあります。プロジェクト導入の場合はリポジトリ直下からの `.claude/skills/...` に
@@ -93,6 +109,9 @@ python3 ~/.claude/skills/cq-review/cq-metrics.py src/
 
 Skill は「`/spec-dev` のようにコマンドで呼ぶ」「会話で『spec-dev で進めて』と言う」の
 どちらでも使えます。該当する場面では Claude が自分から使うこともあります。
+
+このほかに、Skill ではない**コミットゲート** (git hooks) が同梱されています。
+決めたことを人間にも機械的に守らせる仕組みで、導入は任意です (第 9 章)。
 
 ---
 
@@ -463,7 +482,83 @@ Claude: 会話にしか無い情報を洗い出しました。まずファイル
 
 ---
 
-## 9. 既存プロジェクトに後から導入する — 計測からリファクタリングまで
+## 9. 決めたことを維持する — コミットゲート (git hooks)
+
+ここまでの Skill は Claude への指示書ですが、この章だけは**人間にも機械的に効く
+ゲート**です。`./install.sh <repo> --hooks` で入り、`git commit` / `git push` のたびに
+自動で走ります (Claude Code がコミットするときも同じように止まります)。
+
+**困りごと**: レビューで直しても、次のコミットでまた長い関数や重複が増える。
+かといって「60 行超えたら弾く」にすると、意図的に長い関数まで弾かれて誰もが
+`--no-verify` を使うようになる。
+
+**解決**: 閾値ではなく**宣言**をゲートにします。cq-metrics.py が出したフラグは、
+`tools/cq-baseline.txt` に理由付きで 1 行書かれていなければコミットが通りません。
+**その 1 行を書くことがレビュー**です。
+
+### 使ってみるとこうなる
+
+```text
+$ git commit -m "add archive reader"
+Undeclared structural findings:
+  src/big.go:3  Big()  69 lines
+
+Either restructure, or add the key to tools/cq-baseline.txt with the reason it is worth keeping.
+The keys are:
+  long src/big.go::Big
+```
+
+直すか、`tools/cq-baseline.txt` に理由を書くかの二択になります。
+
+```text
+# 仕様書と並べて読めることに価値がある。分割すると対応が追えなくなる
+long src/big.go::Big
+```
+
+キーに**行番号を含まない** (`long <path>::<function>`) ので、編集で揺れません。
+逆に、**baseline にあるのにもう検出されない項目も報告されます**。「もう存在しない
+コードのために守り続けている判断」が溜まるのを防ぐためです (元プロジェクトでは
+5 件中 3 件が陳腐化していました)。
+
+### もう 1 つのゲート: 私的データの流出防止
+
+`tools/check-private.py` は、絶対パス (`/home/...`)・プライベート IP・長い数値 ID を
+全ファイルで弾きます。さらに**語彙リスト方式**の検査があります: テストデータや
+ドキュメントの例に出てくる「内容らしきもの」(区切りを含むパス、メディアファイル名、
+CJK 文字列) は、`tools/test-vocabulary.txt` に宣言された名前だけで組み立てる、という
+ルールです。
+
+拒否リストではなく許可リストなのが肝です。**拒否リストは誰かが思いついた名前しか
+止められませんが、語彙方式なら「誰も知らなかった名前」が止まります**。実データを
+ログからコピペしてテストに貼る、という事故がまさにそれです。
+
+語彙リストは強力な反面うるさいので、**`tools/test-vocabulary.txt` を置いたときだけ
+有効**になります (置くまでは構造チェックだけ)。有効にするには同梱の
+`tools/test-vocabulary.template.txt` をコピーして書き足してください。
+
+`pre-push` では、push される**全リビジョンとコミットメッセージ**を検査します。
+pre-commit は 1 コミットずつしか見ないので、「追加して後のコミットで消した」データが
+中間リビジョンに残ったまま公開されるためです (実際にこれで漏れた事例があります)。
+
+### 設定
+
+PJ 固有の設定は `.githooks/pre-commit` の先頭 2 行だけです。
+
+```sh
+ext=".dart"        # 構造チェックの対象拡張子 (空 = 全部)
+scope="lib src"    # 対象ディレクトリ (空 = リポジトリ全体)
+```
+
+既存プロジェクトに入れると初回は大量に落ちるので、まず現状を一覧して仕分けます:
+
+```bash
+python3 tools/check-metrics.py --list >> tools/cq-baseline.txt
+```
+
+そのうえで「残す理由が書けないもの」を消して直していくと、宣言ファイルが
+そのまま「意図的に残している構造の一覧」になります。
+
+## 10. 既存プロジェクトに後から導入する — 計測からリファクタリングまで
 
 **シナリオ**: 開発中のプロジェクトにこのツール群を導入し、たまっているコード品質の
 問題を安全に返済していく。新規開発 (spec-dev から始める) と並ぶ、もう 1 つの典型的な
@@ -548,6 +643,17 @@ python3 .claude/skills/cq-review/cq-metrics.py --csv --label $(git rev-parse --s
 flagged の数が下がっていくのが見えます。全バッチ終了後、繰り返し出た指摘パターンは
 checklist.md に追加しておくと、次からのレビューで最初から検出されます。
 
+### ステップ 6: 戻らないようにする
+
+返済が終わったら、コミットゲート (第 9 章) を入れる好機です。残った flagged を
+`tools/cq-baseline.txt` に理由付きで宣言すれば、**それ以降に増えた分だけ**が
+コミット時に止まります。ゼロにしてから入れる必要はありません。
+
+```bash
+./install.sh . --hooks --force
+python3 tools/check-metrics.py --list >> tools/cq-baseline.txt   # 現状を宣言
+```
+
 ## よくある質問
 
 **Q. 全部の Skill を毎回使うの?**
@@ -565,8 +671,10 @@ Skill 側に「破壊的操作・ベースライン更新・修正計画は人�
 そこだけあなたの判断で裁定してください。むしろ低確度を断定してこないことが重要です。
 
 **Q. 秘密情報は大丈夫?**
-同梱スクリプト 5 つ (cq-metrics.py, git-cochange.py, cpp-coupling.py,
-trace-matrix.py, parse-lit-log.py) は完全ローカル・読み取り専用で外部送信なし。
+同梱スクリプト 7 つ (cq-metrics.py, git-cochange.py, cpp-coupling.py,
+trace-matrix.py, parse-lit-log.py, check-metrics.py, check-private.py) は
+完全ローカル・読み取り専用で外部送信なし。むしろ check-private.py は
+「私的データをリポジトリに入れない」ためのゲートです (第 9 章)。
 Claude Code 自体の利用ポリシーは所属組織のルールに従ってください。
 
 ## ファイル一覧
@@ -584,7 +692,17 @@ Claude Code 自体の利用ポリシーは所属組織のルールに従って�
 └── prepare-compact/ SKILL.md
 ```
 
-- スクリプト 5 つは Python 3.6+ 標準ライブラリのみ。単体実行可 (`--help` あり)。
+コミットゲート (`--hooks` を付けたときだけ、リポジトリ直下に配置):
+
+```
+<repo>/
+├── .githooks/      pre-commit / pre-push (core.hooksPath で有効化される)
+└── tools/          check-metrics.py + check-private.py
+                    + cq-baseline.txt / test-vocabulary.txt (宣言ファイル。
+                      *.template.txt が原本で、install.sh は上書きしない)
+```
+
+- スクリプト 7 つは Python 3.6+ 標準ライブラリのみ。単体実行可 (`--help` あり)。
   cq-metrics.py は `--csv --label <commit>` で品質推移の記録もできる
   (git-cochange.py / cpp-coupling.py も `--csv` 対応)
 - `coding-rules/rules/` には `*.md` (有効なルール) と `*.template.md` (デフォルトの原本) が
