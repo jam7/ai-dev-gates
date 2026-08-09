@@ -9,8 +9,7 @@ Claude Code に「開発の進め方」を教え込むための Skill (指示書
 
 ## インストール
 
-配布パッケージ (ai-dev-skills-YYYYMMDD.tgz) を展開し、install.sh を実行します。
-導入先は 2 通りあります。
+このリポジトリを clone して `install.sh` を実行します。導入先は 2 通りあります。
 
 ### A. プロジェクトに導入する (チーム試行はこちらを推奨)
 
@@ -18,8 +17,8 @@ Claude Code に「開発の進め方」を教え込むための Skill (指示書
 clone した全員に Skill が行き渡り、個人ごとのインストール作業が不要になります。
 
 ```bash
-tar xzf ai-dev-skills-20260704.tgz
-cd ai-dev-skills
+git clone https://github.com/<user>/ai-auto.git
+cd ai-auto
 ./install.sh /path/to/your-repo     # <repo>/.claude/skills/ にコピー
 cd /path/to/your-repo
 git add .claude/skills CLAUDE.md
@@ -36,8 +35,8 @@ git commit -m "Add AI dev skills"
 ### B. 自分のホームに導入する (個人で常用する場合)
 
 ```bash
-tar xzf ai-dev-skills-20260704.tgz
-cd ai-dev-skills
+git clone https://github.com/<user>/ai-auto.git
+cd ai-auto
 ./install.sh        # ~/.claude/skills/ にコピー。全プロジェクトで有効
 ```
 
@@ -45,17 +44,22 @@ cd ai-dev-skills
 自動的に認識されます。両方に同名 Skill を入れると紛らわしいので、
 試行期間はプロジェクト側に寄せるのがおすすめです。
 
-### 上書きは起きない (更新のしかた)
+### 更新のしかた (上書きは起きない)
 
-install.sh は**書き込む前に全ての配置先を調べ、1 つでも上書きになるならエラーで
-何もせず終了します**。チームが編集したルールや手を入れたフックを、再実行で
-失うことがないようにするためです。更新するときは `--force` を付けます。
+新しい版を取り込むときは、**clone したこのリポジトリを `git pull` してから
+install.sh を再実行**します。
 
 ```bash
+cd /path/to/ai-auto
+git pull
 ./install.sh /path/to/your-repo --hooks --force
 ```
 
-`--force` を付けても次の 2 つは保持されます。パッケージ側から再生成できない、
+install.sh は**書き込む前に全ての配置先を調べ、1 つでも上書きになるならエラーで
+何もせず終了します**。チームが編集したルールや手を入れたフックを、再実行で
+失うことがないようにするためです。だから更新時は `--force` が要ります。
+
+`--force` を付けても次の 2 つは保持されます。こちら側から再生成できない、
 チームの判断そのものだからです。
 
 - `coding-rules/rules/*.md` — チームが編集したルール (`*.template.md` だけ更新)
@@ -462,7 +466,7 @@ Claude: fix-loop で進めます。ガードセット: config 関連テスト全
 書けたものは圧縮の引数から外し、**どこにも書けなかった数項目だけ**を
 `/compact` の引数文字列にまとめて渡します。要約に頼らないのが要点です。
 書き出す先は**そのプロジェクトが既に使っている場所**が優先で (CLAUDE.md の
-ディレクトリ規約、無ければ既存ファイルの置き方に合わせる)、下の例はこのパッケージの
+ディレクトリ規約、無ければ既存ファイルの置き方に合わせる)、下の例はこのリポジトリの
 規約の場合です。
 
 ### 使ってみるとこうなる
@@ -739,7 +743,7 @@ Claude Code 自体の利用ポリシーは所属組織のルールに従って�
 - `coding-rules/rules/` には `*.md` (有効なルール) と `*.template.md` (デフォルトの原本) が
   並びます。install.sh で更新するとき `*.md` はチームのものとして保持され、
   `*.template.md` だけが差し替わります
-- おまけ: パッケージ内の `prompts/weekly-report.md` — git log と作業記録から
+- おまけ: `prompts/weekly-report.md` — git log と作業記録から
   週報ドラフトを作るコピペ用プロンプト (Skill ではないので、使うとき中身を貼る)
 
 ## 質問・改善要望
