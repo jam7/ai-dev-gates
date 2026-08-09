@@ -1,6 +1,7 @@
 ---
 name: fix-loop
 description: Regression-guarded fix protocol to prevent whack-a-mole (fixing A breaks B, fixing B breaks A). Use when starting a bug-fix or test-fix session that may take multiple attempts, or when the user mentions regressions reappearing. Enforces a fixed guard test set, one change per iteration, and a session ledger.
+license: MIT
 ---
 
 # fix-loop: モグラたたき防止プロトコル

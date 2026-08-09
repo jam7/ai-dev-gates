@@ -1,6 +1,7 @@
 ---
 name: self-review
 description: Attach a structured self-review to any non-trivial design or patch before presenting it, so the human can review by focus points instead of reading everything. Use when presenting a patch, design, or multi-file change for human review, or when the user asks "review this before I look".
+license: MIT
 ---
 
 # self-review: AI 出力にレビューパックを付ける

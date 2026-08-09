@@ -1,6 +1,7 @@
 ---
 name: spec-dev
 description: Gated development flow from requirements to tests with traceability IDs (R/S/D/T). Each phase has an exit checklist to catch missing information early, and IDs link requirements, spec, design, code, and tests so later changes can be traced. Use when starting a new feature/task from requirements, writing a spec or design doc, or when the user wants the requirements-to-test flow managed.
+license: MIT
 ---
 
 # spec-dev: 工程ゲート付き開発フロー

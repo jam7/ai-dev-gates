@@ -1,6 +1,7 @@
 ---
 name: prepare-compact
 description: Prepare for a context compaction. Decide what must survive, persist the durable parts to files (docs/notes/memory), and hand the user a ready-to-run `/compact <args>` string covering only what lives nowhere but the conversation. Use when the user says they want to compact, asks what to keep before compacting, or when the context is about to be summarized mid-task.
+license: MIT
 ---
 
 # prepare-compact: 圧縮前に、消えて困るものを外へ出す

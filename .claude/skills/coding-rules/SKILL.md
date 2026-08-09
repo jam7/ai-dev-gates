@@ -1,6 +1,7 @@
 ---
 name: coding-rules
 description: Apply coding rules and clean-code principles at write time, before and while writing code. Loads all team-extensible rule files from this skill's rules/*.md. Use whenever writing or modifying code — implementation tasks, refactoring, bug fixes — not only when the user mentions rules explicitly.
+license: MIT
 ---
 
 # coding-rules: 書く時点で規約を守る

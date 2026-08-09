@@ -1,9 +1,19 @@
 # AI 開発支援 Skill 集 — 使い方ガイド
 
-Claude Code に「開発の進め方」を教え込むための Skill (指示書) 集です。
+> **English**: A set of agent skills (`SKILL.md` instructions) and small
+> stdlib-only Python scripts that keep AI-assisted development verifiable.
+> Each one is a gate: requirements to tests with traceable IDs, a fixed guard
+> set before any fix attempt, a metrics-backed review, and an opt-in commit
+> hook that fails on findings nobody has declared a reason for. Works with
+> Claude Code and GitHub Copilot — both read `.claude/skills/`. Everything
+> runs locally; no services, no network. The guide below is in Japanese.
+
+AI に「開発の進め方」を教え込むための Skill (指示書) 集です。
 要件整理からテスト、手戻り対応までの開発の流れ全体を、AI と一緒に安全に回せるようにします。
 
-- 対象: Claude Code を使って開発する人 (AI 利用が初めてでも OK)
+- 対象: **Claude Code / GitHub Copilot** を使って開発する人 (AI 利用が初めてでも OK)。
+  Skill の置き場所 `.claude/skills/` は両方が読み、frontmatter の書式も共通なので、
+  導入手順は同じです
 - 特徴: 全部ローカルで動く。外部サービス・課金・ネットワーク不要。
   スクリプトは Python 標準ライブラリのみ
 
@@ -17,8 +27,8 @@ Claude Code に「開発の進め方」を教え込むための Skill (指示書
 clone した全員に Skill が行き渡り、個人ごとのインストール作業が不要になります。
 
 ```bash
-git clone https://github.com/<user>/ai-auto.git
-cd ai-auto
+git clone https://github.com/jam7/ai-dev-gates.git
+cd ai-dev-gates
 ./install.sh /path/to/your-repo     # <repo>/.claude/skills/ にコピー
 cd /path/to/your-repo
 git add .claude/skills CLAUDE.md
@@ -35,13 +45,13 @@ git commit -m "Add AI dev skills"
 ### B. 自分のホームに導入する (個人で常用する場合)
 
 ```bash
-git clone https://github.com/<user>/ai-auto.git
-cd ai-auto
+git clone https://github.com/jam7/ai-dev-gates.git
+cd ai-dev-gates
 ./install.sh        # ~/.claude/skills/ にコピー。全プロジェクトで有効
 ```
 
-インストール後に Claude Code を起動 (プロジェクト導入ならそのリポジトリ内で) すると
-自動的に認識されます。両方に同名 Skill を入れると紛らわしいので、
+インストール後に Claude Code / Copilot を起動 (プロジェクト導入ならそのリポジトリ内で)
+すると自動的に認識されます。両方に同名 Skill を入れると紛らわしいので、
 試行期間はプロジェクト側に寄せるのがおすすめです。
 
 ### 更新のしかた (上書きは起きない)
@@ -50,7 +60,7 @@ cd ai-auto
 install.sh を再実行**します。
 
 ```bash
-cd /path/to/ai-auto
+cd /path/to/ai-dev-gates
 git pull
 ./install.sh /path/to/your-repo --hooks --force
 ```
@@ -112,7 +122,8 @@ python3 ~/.claude/skills/cq-review/cq-metrics.py src/
 | **prepare-compact** | 会話を圧縮する前に、消えて困る情報をファイルへ退避させる | 長い作業でコンテキストが限界に近づいたとき |
 
 Skill は「`/spec-dev` のようにコマンドで呼ぶ」「会話で『spec-dev で進めて』と言う」の
-どちらでも使えます。該当する場面では Claude が自分から使うこともあります。
+どちらでも使えます。該当する場面では AI が自分から使うこともあります
+(Copilot も frontmatter の description を見て同じように判断します)。
 
 このほかに、Skill ではない**コミットゲート** (git hooks) が同梱されています。
 決めたことを人間にも機械的に守らせる仕組みですが、**入れるのは新規プロジェクトか、
@@ -211,7 +222,7 @@ Claude: fix-loop で進めます。
 重点確認ポイント) を出させます。あなたは重点確認ポイントから読めば済みます。
 
 **発動条件**: この Skill は人間が呼ばなくても動きます。各 Skill には「どういう場面で
-使うか」の記述 (description) があり、Claude はそれを常に見ています。self-review の
+使うか」の記述 (description) があり、AI はそれを常に見ています。self-review の
 発動条件は「パッチ・設計・複数ファイル変更を人間のレビューに出すとき」なので、
 **AI が成果物を提示しようとしたタイミング**で自動的に適用されます (自明な数行の
 変更には付きません)。ただし自動発動はベストエフォートなので、確実に効かせたいときは
@@ -501,7 +512,7 @@ Claude: 会話にしか無い情報を洗い出しました。まずファイル
 
 ここまでの Skill は Claude への指示書ですが、この章だけは**人間にも機械的に効く
 ゲート**です。`./install.sh <repo> --hooks` で入り、`git commit` / `git push` のたびに
-自動で走ります (Claude Code がコミットするときも同じように止まります)。
+自動で走ります (Claude Code や Copilot がコミットするときも同じように止まります)。
 
 **先に読んでください**: これは**きれいなリポジトリを維持するための道具**であって、
 汚れたリポジトリを掃除する道具ではありません。入れどきの判断は「いつ入れるか」節に
@@ -627,7 +638,7 @@ Claude: 32 件の指摘は実質 5 つの構造問題に集約されます。
 ```
 
 ポイント: **1 バッチ = 1 つの構造問題 = 1 ブランチ**。「直さない判断」(閾値超過でも
-問題なし、と Claude が言う項目) も計画に含めます。目標は指摘ゼロではなく
+問題なし、と AI が言う項目) も計画に含めます。目標は指摘ゼロではなく
 「同じ変更を 2 箇所にしなくて済むようになること」です。
 
 ### ステップ 3: リファクタリング用の安全網を準備する
@@ -710,7 +721,7 @@ Skill 側に「破壊的操作・ベースライン更新・修正計画は人�
 trace-matrix.py, parse-lit-log.py, check-metrics.py, check-private.py) は
 完全ローカル・読み取り専用で外部送信なし。むしろ check-private.py は
 「私的データをリポジトリに入れない」ためのゲートです (第 9 章)。
-Claude Code 自体の利用ポリシーは所属組織のルールに従ってください。
+AI アシスタント自体の利用ポリシーは所属組織のルールに従ってください。
 
 ## ファイル一覧
 

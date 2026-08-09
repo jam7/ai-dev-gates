@@ -1,6 +1,7 @@
 ---
 name: rework
 description: Handle late-discovered upstream problems (spec gaps, wrong assumptions, insufficient design/coupling) with trace-based impact analysis and a minimal, regression-guarded redo plan. Use when a requirement/spec/design problem is found after implementation started, or when the user says they need to redo work because earlier information was wrong or insufficient.
+license: MIT
 ---
 
 # rework: 手戻りの構造化プロトコル

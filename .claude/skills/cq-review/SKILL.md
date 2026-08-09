@@ -1,6 +1,7 @@
 ---
 name: cq-review
 description: Structured code quality review (function extraction, coupling, nesting depth, naming — Readable Code / Clean Code viewpoints). Combines mechanical metrics (cq-metrics.py) with semantic review and outputs a severity-ranked findings table. Use when the user asks for a code quality review (cq-review), before requesting human review, or as the review gate after AI-written code.
+license: MIT
 ---
 
 # cq-review: コード品質の構造化レビュー
@@ -66,7 +67,7 @@ python3 $SKILL/git-cochange.py [--commits 3000|--since "1 year ago"] [--path SUB
 `$SKILL/cpp-coupling.py` — compile_commands.json (cmake
 -DCMAKE_EXPORT_COMPILE_COMMANDS=ON で生成) の include グラフから、モジュール間の
 循環依存・不安定度 I=Ce/(Ca+Ce)・fan-in を出す。設計レビュー (spec-dev ゲート G2) の
-「結合度が妥当か」の定量根拠に使う。使い方は --help (パッケージ同梱の README.md
+「結合度が妥当か」の定量根拠に使う。使い方は --help (リポジトリの README.md
 「結合度も測る」節にも読み方の要点がある)
 
 ## 手順

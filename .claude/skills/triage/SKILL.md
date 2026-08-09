@@ -1,6 +1,7 @@
 ---
 name: triage
 description: Triage lit test failures from check-* logs. Extracts FAIL/XPASS/UNRESOLVED/TIMEOUT, diffs against a baseline or previous run, investigates new failures, and produces a classified report. Use when the user asks to triage/analyze test results, check a lit log, or compare test runs.
+license: MIT
 ---
 
 # lit テスト失敗トリアージ
