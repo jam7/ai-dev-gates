@@ -6,7 +6,12 @@
 #   ./install.sh /path/to/repo          for a project -> <repo>/.claude/skills
 #                                       -> commit .claude/skills to share it
 #   ./install.sh /path/to/repo --hooks  also the commit gate (.githooks, tools/)
+#   ./install.sh /path/to/repo --hooks-only   the gate, and not the skills
 #   ...            --force              replace what is already installed
+#
+# --hooks-only is for the common case of skills installed once in ~/.claude
+# and a gate wanted in this repository: hooks are per-repository, since
+# core.hooksPath is repository configuration, while skills need not be.
 #
 # Nothing is written until every destination has been checked. If anything
 # would be overwritten the run stops with a list and changes nothing, so an
@@ -20,10 +25,12 @@ cd "$(dirname "$0")"
 
 root=""
 hooks=0
+hooks_only=0
 force=0
 for arg in "$@"; do
   case "$arg" in
     --hooks) hooks=1 ;;
+    --hooks-only) hooks=1; hooks_only=1 ;;
     --force) force=1 ;;
     -*) echo "error: unknown option: $arg" >&2; exit 2 ;;
     *)
@@ -39,7 +46,7 @@ done
 # running from a repo that tracks the installed form
 src=skills
 [ -d "$src" ] || src=.claude/skills
-if [ ! -d "$src" ]; then
+if [ ! -d "$src" ] && [ "$hooks_only" -eq 0 ]; then
   echo "error: no skills directory found next to install.sh" >&2
   exit 1
 fi
@@ -69,7 +76,9 @@ fi
 # tools/ are already there and are the original, so copying them onto
 # themselves would only destroy them. .githooks/ is still worth placing, since
 # that is a different directory from the githooks/ they come from.
-mkdir -p "$dest"
+if [ "$hooks_only" -eq 0 ]; then
+  mkdir -p "$dest"
+fi
 self=0
 if [ -n "$root" ] && [ "$(cd "$root" && pwd -P)" = "$(pwd -P)" ]; then
   self=1
@@ -82,7 +91,7 @@ add_conflict() {
 "
 }
 
-if [ "$self" -eq 0 ]; then
+if [ "$self" -eq 0 ] && [ "$hooks_only" -eq 0 ]; then
   for d in "$src"/*/; do
     if [ -e "$dest/$(basename "$d")" ]; then
       add_conflict "$dest/$(basename "$d")"
@@ -115,11 +124,12 @@ if [ -n "$conflicts" ] && [ "$force" -eq 0 ]; then
 fi
 
 # ---- write ---------------------------------------------------------------
-if [ "$self" -eq 1 ]; then
+if [ "$self" -eq 1 ] && [ "$hooks_only" -eq 0 ]; then
   echo "  skills already here (installing into their own repository)"
 fi
 for d in "$src"/*/; do
   [ "$self" -eq 1 ] && break
+  [ "$hooks_only" -eq 1 ] && break
   name=$(basename "$d")
   saved=""
   if [ -e "$dest/$name" ]; then
@@ -152,7 +162,8 @@ done
 
 # project install only: provide CLAUDE.md (project conventions) from template.
 # Home installs never touch ~/CLAUDE.md.
-if [ -n "$root" ] && [ -f CLAUDE.template.md ] && [ "$self" -eq 0 ]; then
+if [ -n "$root" ] && [ -f CLAUDE.template.md ] && [ "$self" -eq 0 ] \
+   && [ "$hooks_only" -eq 0 ]; then
   cp CLAUDE.template.md "$root/CLAUDE.md"
   echo "  installed CLAUDE.md (project conventions)"
 fi
@@ -202,6 +213,12 @@ if [ "$hooks" -eq 1 ]; then
   echo "     (without it, only the structural checks run)"
 fi
 
-echo "done. installed to: $dest"
-echo "restart Claude Code (in the project directory, if project install) to pick up the skills."
-echo "try: python3 $dest/cq-review/cq-metrics.py <your-source-dir>"
+if [ "$hooks_only" -eq 1 ]; then
+  echo "done. the gate is installed; the skills were left alone."
+  echo "check-metrics.py looks for cq-metrics.py in this repository first and"
+  echo "then in ~/.claude/skills, so a home install of the skills is enough."
+else
+  echo "done. installed to: $dest"
+  echo "restart Claude Code (in the project directory, if project install) to pick up the skills."
+  echo "try: python3 $dest/cq-review/cq-metrics.py <your-source-dir>"
+fi

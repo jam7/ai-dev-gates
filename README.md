@@ -19,7 +19,7 @@ AI に「開発の進め方」を教え込むための Skill (指示書) 集で�
 
 ## インストール
 
-このリポジトリを clone して `install.sh` を実行します。導入先は 2 通りあります。
+このリポジトリを clone して `install.sh` を実行します。導入先は 3 通りあります。
 
 ### A. プロジェクトに導入する (チーム試行はこちらを推奨)
 
@@ -53,6 +53,20 @@ cd ai-dev-gates
 インストール後に Claude Code / Copilot を起動 (プロジェクト導入ならそのリポジトリ内で)
 すると自動的に認識されます。両方に同名 Skill を入れると紛らわしいので、
 試行期間はプロジェクト側に寄せるのがおすすめです。
+
+### C. ゲートだけ入れる (Skill はホームにある場合)
+
+**フックはリポジトリごとに入れる必要があります。** `core.hooksPath` がリポジトリの
+設定だからです。Skill を `~/.claude/skills/` に入れて使っている人は、プロジェクトに
+Skill の複製を作らずにゲートだけ入れられます。
+
+```bash
+./install.sh /path/to/your-repo --hooks-only
+```
+
+`.githooks/` と `tools/` だけを置き、`.claude/skills/` も `CLAUDE.md` も作りません。
+`check-metrics.py` は cq-metrics.py を**リポジトリ内 → `~/.claude/skills/` の順で
+探す**ので、ホーム導入だけで動きます。
 
 ### 更新のしかた (上書きは起きない)
 
