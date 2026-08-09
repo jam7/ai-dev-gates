@@ -103,6 +103,51 @@ def significant_lines(lines):
     return out
 
 
+# The three step functions below each answer the same question for one state:
+# given this character and the next, what state comes next, how many
+# characters did that take, and what stands in their place? Emitting a
+# replacement of the same width is what keeps line numbers and columns intact.
+
+def step_outside(c, nxt):
+    """A step in plain code, where a comment or a literal may open."""
+    if c == "#":
+        # A comment in Python and a directive in C, and both are dropped by
+        # every consumer below -- but leaving it alone meant an apostrophe in
+        # a Python comment (`# Go's raw strings`) opening a string that
+        # swallowed the rest of the file.
+        return "line", 1, " "
+    if c == "/" and nxt == "/":
+        return "line", 2, "  "
+    if c == "/" and nxt == "*":
+        return "block", 2, "  "
+    if c in ('"', "'", "`"):
+        return c, 1, c
+    return None, 1, c
+
+
+def step_comment(state, c, nxt):
+    """A step inside a comment. Newlines are kept, everything else is space."""
+    if state == "line":
+        return (None, 1, c) if c == "\n" else ("line", 1, " ")
+    if c == "*" and nxt == "/":
+        return None, 2, "  "
+    return "block", 1, (c if c == "\n" else " ")
+
+
+def step_literal(state, c, nxt, keep_strings):
+    """A step inside a string or character literal."""
+    if c == "\\" and state != "`":
+        # An escape is two characters, and the second cannot close the
+        # literal -- `'\''` is one quote, not an empty string.
+        escaped = nxt if keep_strings and nxt and nxt != "\n" else " "
+        return state, 2, (c if keep_strings else " ") + escaped
+    if c == state:
+        return None, 1, c
+    if c == "\n":
+        return state, 1, c
+    return state, 1, (c if keep_strings else " ")
+
+
 def strip_code(text, keep_strings=False):
     """Blank out comments (and, unless keep_strings, string/char literal
     contents), preserving line structure so line numbers and braces stay
@@ -114,64 +159,13 @@ def strip_code(text, keep_strings=False):
         c = text[i]
         nxt = text[i + 1] if i + 1 < n else ""
         if state is None:
-            if c == "#":
-                # A comment in Python and a directive in C, and both are
-                # dropped by every consumer below -- but leaving it alone
-                # meant an apostrophe in a Python comment (`# Go's raw
-                # strings`) opened a string that swallowed the rest of the
-                # file.
-                state = "line"
-                i += 1
-                out.append(" ")
-                continue
-            if c == "/" and nxt == "/":
-                state = "line"
-                i += 2
-                out.append("  ")
-                continue
-            if c == "/" and nxt == "*":
-                state = "block"
-                i += 2
-                out.append("  ")
-                continue
-            if c in ('"', "'", "`"):
-                state = c
-                out.append(c)
-                i += 1
-                continue
-            out.append(c)
-        elif state == "line":
-            if c == "\n":
-                state = None
-                out.append(c)
-            else:
-                out.append(" ")
-        elif state == "block":
-            if c == "*" and nxt == "/":
-                state = None
-                i += 2
-                out.append("  ")
-                continue
-            out.append(c if c == "\n" else " ")
-        else:  # inside string/char literal
-            if c == "\\" and state != "`":
-                out.append(c if keep_strings else " ")
-                if keep_strings:
-                    out.append(text[i + 1] if i + 1 < n and
-                               text[i + 1] != "\n" else " ")
-                else:
-                    out.append(" ")
-                i += 2
-                continue
-            if c == state:
-                state = None
-                out.append(c)
-            else:
-                if c == "\n":
-                    out.append(c)
-                else:
-                    out.append(c if keep_strings else " ")
-        i += 1
+            state, used, emit = step_outside(c, nxt)
+        elif state in ("line", "block"):
+            state, used, emit = step_comment(state, c, nxt)
+        else:
+            state, used, emit = step_literal(state, c, nxt, keep_strings)
+        out.append(emit)
+        i += used
     return "".join(out)
 
 
@@ -275,6 +269,50 @@ def close_python(func, functions):
     functions.append(func)
 
 
+def indent_level(levels, col):
+    """How deep this column is, updating the stack of columns still open.
+
+    Only a column deeper than the one before it opens a level, so a signature
+    wrapped four spaces further in reads the same as one that is not.
+    """
+    while len(levels) > 1 and col < levels[-1]:
+        levels.pop()
+    if not levels or col > levels[-1]:
+        levels.append(col)
+    return len(levels) - 1
+
+
+def open_python(name, scopes, lineno, position):
+    """A function record. [position] is its (column, level)."""
+    col, level = position
+    return {"name": ".".join([s[1] for s in scopes] + [name]),
+            "line": lineno, "indent": col, "level": level,
+            "params": 0, "max_depth": 0, "last": lineno}
+
+
+def absorb_continuation(header, stripped, opened):
+    """Add a continuation line to a def header being collected across lines.
+
+    Returns the header still wanting more, or "" once the parameters have been
+    counted from it.
+    """
+    if not header:
+        return header
+    header += " " + stripped
+    if bracket_balance(header) > 0:
+        return header
+    opened[-1]["params"] = py_params(header)
+    return ""
+
+
+def deepen(opened, level, lineno):
+    """Record that every open function reached [level] on this line."""
+    for func in opened:
+        func["last"] = lineno
+        if level - func["level"] - 1 > func["max_depth"]:
+            func["max_depth"] = level - func["level"] - 1
+
+
 def analyze_python(lines):
     """Functions in an indentation-based file.
 
@@ -291,11 +329,7 @@ def analyze_python(lines):
         if not stripped:
             continue
         if pending > 0 or cont:
-            if header:
-                header += " " + stripped
-                if bracket_balance(header) <= 0:
-                    opened[-1]["params"] = py_params(header)
-                    header = ""
+            header = absorb_continuation(header, stripped, opened)
             for func in opened:
                 func["last"] = lineno
             pending += bracket_balance(stripped)
@@ -303,11 +337,7 @@ def analyze_python(lines):
             continue
 
         col = indent_of(line)
-        while len(levels) > 1 and col < levels[-1]:
-            levels.pop()
-        if not levels or col > levels[-1]:
-            levels.append(col)
-        level = len(levels) - 1
+        level = indent_level(levels, col)
         while opened and col <= opened[-1]["indent"]:
             close_python(opened.pop(), functions)
         while scopes and col <= scopes[-1][0]:
@@ -317,10 +347,8 @@ def analyze_python(lines):
 
         found = PY_DEF_RE.match(line)
         if found:
-            name = ".".join([s[1] for s in scopes] + [found.group(1)])
-            opened.append({"name": name, "line": lineno, "indent": col,
-                           "level": level, "params": 0, "max_depth": 0,
-                           "last": lineno})
+            opened.append(open_python(found.group(1), scopes, lineno,
+                                      (col, level)))
             scopes.append((col, found.group(1)))
             header = stripped
             if pending <= 0:
@@ -332,10 +360,7 @@ def analyze_python(lines):
         if klass:
             scopes.append((col, klass.group(1)))
             continue
-        for func in opened:
-            func["last"] = lineno
-            if level - func["level"] - 1 > func["max_depth"]:
-                func["max_depth"] = level - func["level"] - 1
+        deepen(opened, level, lineno)
     for func in opened:
         close_python(func, functions)
     return functions
@@ -368,6 +393,40 @@ def add_duplicates(path, raw, opts, dup_index):
         dup_index.setdefault(key, []).append((path, sig[k][0]))
 
 
+def open_brace(func, depth, header, lineno):
+    """Handle a `{`. [header] is (text, first line) of what preceded it.
+
+    Returns (func, depth). A brace only starts a function when none is open:
+    the inner braces of one are its body, not another declaration.
+    """
+    header_buf, header_line = header
+    if func is None and looks_like_function(header_buf):
+        func = {
+            "name": function_name(header_buf),
+            "line": header_line or lineno,
+            "params": split_params(param_group(header_buf) or ""),
+            "entry_depth": depth,
+            "max_depth": 0,
+        }
+    depth += 1
+    if func is not None:
+        rel = depth - func["entry_depth"] - 1
+        if rel > func["max_depth"]:
+            func["max_depth"] = rel
+    return func, depth
+
+
+def close_brace(func, depth, functions, lineno):
+    """Handle a `}`. Returns (func, depth); func is None once it closed."""
+    depth = max(0, depth - 1)
+    if func is not None and depth == func["entry_depth"]:
+        func["end"] = lineno
+        func["loc"] = lineno - func["line"] + 1
+        functions.append(func)
+        func = None
+    return func, depth
+
+
 def analyze_braces(lines):
     """Functions in a brace-delimited file."""
     functions = []
@@ -385,28 +444,11 @@ def analyze_braces(lines):
             continue
         for c in line:
             if c == "{":
-                if func is None and looks_like_function(header_buf):
-                    func = {
-                        "name": function_name(header_buf),
-                        "line": header_line or lineno,
-                        "params": split_params(
-                            param_group(header_buf) or ""),
-                        "entry_depth": depth,
-                        "max_depth": 0,
-                    }
-                depth += 1
-                if func is not None:
-                    rel = depth - func["entry_depth"] - 1
-                    if rel > func["max_depth"]:
-                        func["max_depth"] = rel
+                func, depth = open_brace(func, depth,
+                                         (header_buf, header_line), lineno)
                 header_buf, header_line = "", None
             elif c == "}":
-                depth = max(0, depth - 1)
-                if func is not None and depth == func["entry_depth"]:
-                    func["end"] = lineno
-                    func["loc"] = lineno - func["line"] + 1
-                    functions.append(func)
-                    func = None
+                func, depth = close_brace(func, depth, functions, lineno)
                 header_buf, header_line = "", None
             elif c == ";":
                 header_buf, header_line = "", None
