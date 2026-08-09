@@ -5,6 +5,12 @@
 # deliberate -- so the gate is a declaration instead: adding the line is the
 # review, and the reason beside it is what the next person reads.
 #
+# This file holds decisions, never a backlog. If you cannot write the reason,
+# the code wants fixing instead -- and if that is true of many of them, the
+# gate has been installed too early. Clean up with cq-review first and add the
+# hooks when the list is short enough to defend line by line; a file seeded
+# from `--list` is an ignore list, and a new finding will hide in it unseen.
+#
 # Before adding one, ask whether a helper would carry the repeated part without
 # breaking the layout. That is usually the answer for duplicates, and often the
 # answer for a long function that is long because two things live in it.
