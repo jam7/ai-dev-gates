@@ -11,5 +11,5 @@
   ~4 lines x 2 sites: tests/fixtures/python/shapes.py:32, tests/fixtures/python/tabs.py:3
 
 == Summary ==
-  files: 15, functions: 23, flagged: long=0 deep=0 params=0 dup-groups=4
+  files: 17, functions: 26, flagged: long=0 deep=0 params=0 dup-groups=4
 --- exit 0 ---

@@ -1,4 +1,4 @@
-== Long functions (> 0 lines): 23 ==
+== Long functions (> 0 lines): 26 ==
   tests/fixtures/braces/decls.cs:12  Read()  14 lines
   tests/fixtures/braces/receiver.go:19  Load()  14 lines
   tests/fixtures/braces/shapes.c:8  guarded()  14 lines
@@ -11,6 +11,9 @@
   tests/fixtures/braces/shapes.c:30  quoting()  6 lines
   tests/fixtures/python/shapes.py:66  continued()  6 lines
   tests/fixtures/braces/decls_twin.cs:12  Write()  5 lines
+  tests/fixtures/braces/literals.js:6  describe()  5 lines
+  tests/fixtures/braces/literals.js:12  quoting()  5 lines
+  tests/fixtures/braces/literals.rs:17  tabulate()  3 lines
   tests/fixtures/braces/receiver.go:35  Raw()  3 lines
   tests/fixtures/braces/shapes.c:25  many()  3 lines
   tests/fixtures/python/shapes.py:19  flat()  3 lines
@@ -23,7 +26,7 @@
   tests/fixtures/coupling/src/net/session.c:2  session_open()  1 lines
   tests/fixtures/coupling/src/core/engine.c:2  engine_run()  1 lines
 
-== Deep nesting (> -1 levels): 23 ==
+== Deep nesting (> -1 levels): 26 ==
   tests/fixtures/python/shapes.py:31  Holder.deep()  depth 5
   tests/fixtures/braces/shapes.c:8  guarded()  depth 4
   tests/fixtures/python/tabs.py:1  tabbed()  depth 4
@@ -33,6 +36,9 @@
   tests/fixtures/python/shapes.py:41  Holder.chain()  depth 1
   tests/fixtures/python/shapes.py:74  outer()  depth 1
   tests/fixtures/braces/decls_twin.cs:12  Write()  depth 0
+  tests/fixtures/braces/literals.js:6  describe()  depth 0
+  tests/fixtures/braces/literals.js:12  quoting()  depth 0
+  tests/fixtures/braces/literals.rs:17  tabulate()  depth 0
   tests/fixtures/braces/receiver.go:35  Raw()  depth 0
   tests/fixtures/braces/shapes.c:25  many()  depth 0
   tests/fixtures/braces/shapes.c:30  quoting()  depth 0
@@ -48,15 +54,17 @@
   tests/fixtures/python/shapes.py:66  continued()  depth 0
   tests/fixtures/python/shapes.py:77  outer.inner()  depth 0
 
-== Long parameter lists (> -1 params): 23 ==
+== Long parameter lists (> -1 params): 26 ==
   tests/fixtures/braces/shapes.c:25  many()  6 params
   tests/fixtures/python/shapes.py:54  wrapped()  3 params
+  tests/fixtures/braces/literals.js:6  describe()  2 params
   tests/fixtures/braces/receiver.go:19  Load()  2 params
   tests/fixtures/braces/twin.go:18  Save()  2 params
   tests/fixtures/python/shapes.py:19  flat()  2 params
   tests/fixtures/python/shapes.py:27  Holder.__init__()  2 params
   tests/fixtures/braces/decls.cs:12  Read()  1 params
   tests/fixtures/braces/decls_twin.cs:12  Write()  1 params
+  tests/fixtures/braces/literals.rs:17  tabulate()  1 params
   tests/fixtures/braces/shapes.c:8  guarded()  1 params
   tests/fixtures/coupling/src/util/log.c:3  log_line()  1 params
   tests/fixtures/python/imports_a.py:11  widen()  1 params
@@ -67,6 +75,7 @@
   tests/fixtures/python/shapes.py:77  outer.inner()  1 params
   tests/fixtures/python/shapes.py:74  outer()  1 params
   tests/fixtures/python/tabs.py:1  tabbed()  1 params
+  tests/fixtures/braces/literals.js:12  quoting()  0 params
   tests/fixtures/braces/receiver.go:35  Raw()  0 params
   tests/fixtures/braces/shapes.c:30  quoting()  0 params
   tests/fixtures/braces/shapes.c:42  shallow()  0 params
@@ -74,5 +83,5 @@
   tests/fixtures/coupling/src/core/engine.c:2  engine_run()  0 params
 
 == Summary ==
-  files: 15, functions: 23, flagged: long=23 deep=23 params=23 dup-groups=0
+  files: 17, functions: 26, flagged: long=26 deep=26 params=26 dup-groups=0
 --- exit 0 ---

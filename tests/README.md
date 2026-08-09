@@ -36,6 +36,17 @@ characterization test です (README 第 10 章ステップ 3 で他プロジェ
 | C# の `using var` は import でなく実コード | `braces/decls.cs` |
 | Go のレシーバは引数でなくメソッド名を報告 | `braces/receiver.go` の `Load` |
 | 制御構文・初期化子は関数でない | `braces/shapes.c` |
+| JS のテンプレートリテラル内の `{}` はブロックでない | `braces/literals.js` |
+| **Rust のライフタイムで走査がずれる (既知の限界)** | `braces/literals.rs` |
+
+## 記録されている既知の限界
+
+golden は「今の挙動」なので、**バグや限界もそのまま記録されます**。意図的です。
+
+- **Rust のライフタイム** (`fn longest<'a>(...)`) — `'a` が文字リテラルの開始と
+  読まれ、次のアポストロフィまでが文字列扱いになるため、その関数が検出されません。
+  `literals.rs` の `longest` が一覧に出てこないのがその記録です。直したら
+  golden に「関数が 1 つ増える」差分が出ます
 
 ## 注意
 

@@ -103,6 +103,28 @@ def significant_lines(lines):
     return out
 
 
+# What ends each state. These are the only characters strip_code has to look
+# at: everything between them is a run of one kind of text, handled in one
+# piece. The regexes are not parsing anything -- they are a way to say "skip
+# to the next interesting character" that runs in C rather than in a Python
+# loop, which is most of why the scan is fast.
+
+# In ordinary code, a comment or a literal may open.
+OUTSIDE_RE = re.compile(r"[#\"'`]|//|/\*")
+# In a literal, three things matter: an escape (the next character cannot
+# close the literal), the matching quote, and a newline -- which is emitted as
+# itself so line numbers hold, and does not end the literal, because a string
+# with an unescaped newline is a broken file rather than a closed string.
+LITERAL_STOP = {q: re.compile(r"[\\%s\n]" % re.escape(q)) for q in ('"', "'")}
+LITERAL_STOP["`"] = re.compile(r"[`\n]")   # no escapes in a raw string
+NON_NEWLINE_RE = re.compile(r"[^\n]")
+
+
+def blank_run(chunk):
+    """The same text with everything but newlines turned into spaces."""
+    return NON_NEWLINE_RE.sub(" ", chunk)
+
+
 # The three step functions below each answer the same question for one state:
 # given this character and the next, what state comes next, how many
 # characters did that take, and what stands in their place? Emitting a
@@ -148,6 +170,29 @@ def step_literal(state, c, nxt, keep_strings):
     return state, 1, (c if keep_strings else " ")
 
 
+# How to read strip_code below.
+#
+# The loop walks states, not characters. Whatever state it is in, everything
+# up to the thing that ends that state is one uninteresting run -- ordinary
+# code, comment text, string contents -- so the run is emitted in one piece
+# and only the character that ended it is examined. Source is overwhelmingly
+# ordinary characters, so this is where the time is: skipping the run with a
+# regex search instead of a per-character Python loop makes the whole tool
+# about twice as fast.
+#
+# Every branch has the same three parts, and reads best if you look for them:
+#
+#   1. find where the current state ends,
+#   2. emit the run -- always the same width as what it replaces, with
+#      newlines kept, so that columns and line numbers still match the
+#      original file,
+#   3. hand the character that ended it to the step function that owns that
+#      state, which says what comes next.
+#
+# The `break` in each branch is the unterminated case: a file that ends inside
+# a comment or a string. There is no terminator to step over, so the run is
+# emitted and the scan is done.
+
 def strip_code(text, keep_strings=False):
     """Blank out comments (and, unless keep_strings, string/char literal
     contents), preserving line structure so line numbers and braces stay
@@ -156,14 +201,48 @@ def strip_code(text, keep_strings=False):
     i, n = 0, len(text)
     state = None  # None, 'line', 'block', '"', "'", '`'
     while i < n:
-        c = text[i]
-        nxt = text[i + 1] if i + 1 < n else ""
         if state is None:
-            state, used, emit = step_outside(c, nxt)
-        elif state in ("line", "block"):
-            state, used, emit = step_comment(state, c, nxt)
+            # Ordinary code, copied through untouched.
+            m = OUTSIDE_RE.search(text, i)
+            if m is None:
+                out.append(text[i:])
+                break
+            out.append(text[i:m.start()])
+            i = m.start()
+            state, used, emit = step_outside(text[i], text[i + 1:i + 2])
+        elif state == "line":
+            # To the end of the line. No newline can be inside the run, so
+            # blanking it is a plain repeat; the newline itself is emitted by
+            # step_comment, which also ends the state.
+            stop = text.find("\n", i)
+            if stop < 0:
+                out.append(" " * (n - i))
+                break
+            out.append(" " * (stop - i))
+            i = stop
+            state, used, emit = step_comment("line", "\n", "")
+        elif state == "block":
+            # To the closing `*/`. The run may span lines, so blank_run keeps
+            # the newlines in it.
+            stop = text.find("*/", i)
+            if stop < 0:
+                out.append(blank_run(text[i:]))
+                break
+            out.append(blank_run(text[i:stop]))
+            i = stop
+            state, used, emit = step_comment("block", "*", "/")
         else:
-            state, used, emit = step_literal(state, c, nxt, keep_strings)
+            # To the next escape, closing quote or newline -- none of which
+            # can appear inside the run, so it needs no blank_run.
+            m = LITERAL_STOP[state].search(text, i)
+            stop = n if m is None else m.start()
+            chunk = text[i:stop]
+            out.append(chunk if keep_strings else " " * len(chunk))
+            if m is None:
+                break
+            i = stop
+            state, used, emit = step_literal(state, text[i],
+                                             text[i + 1:i + 2], keep_strings)
         out.append(emit)
         i += used
     return "".join(out)
