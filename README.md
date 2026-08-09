@@ -570,6 +570,33 @@ CJK 文字列) は、`tools/test-vocabulary.txt` に宣言された名前だけ�
 pre-commit は 1 コミットずつしか見ないので、「追加して後のコミットで消した」データが
 中間リビジョンに残ったまま公開されるためです (実際にこれで漏れた事例があります)。
 
+### 3 つめ: コミットの粒度に気づかせる (警告のみ)
+
+`commit-msg` は、件名が「A し、ついでに B した」の形になっていたら警告します。
+**止めません。**
+
+```text
+note: this subject reads as two changes:
+  cq-metrics: measure Python, and put this repository behind the gate
+
+If they are independent, splitting now costs one 'git reset'.
+Later it costs a history rewrite. If it really is one change,
+rephrase the subject and carry on -- nothing is blocked.
+```
+
+混ざったコミットは**後から一部だけ取り消せません**。revert すれば巻き添えが出ますし、
+履歴から消すには filter-repo でパスを狙い撃ちしてメッセージまで書き直すことになり、
+他のコミットのハッシュも変わります。分けてあれば `git reset` の 1 コマンドです。
+
+検出は `, and` (カンマ + and) と「〜し、ついでに」で、**名詞の並列は対象外**です
+(「Update README for A and B」は 1 つの変更)。このリポジトリの履歴 29 件で測ると、
+実際に混ざっていたものだけに当たり、誤検出はありませんでした。
+
+止めないのは、**「and を書かずに混ぜる」抜け道がいくらでもある**からです。通ったことが
+「分割済み」の証明になってしまうと、かえって害になります。判断できるのは書いた本人
+だけなので、まだ分割が安い瞬間に問いを出すところまでが役割です。
+書く時点の指針は `coding-rules/rules/20-commits.md` にあります。
+
 ### 設定
 
 PJ 固有の設定は `tools/gate.conf` にまとまっています。フック本体には何も書きません。

@@ -166,8 +166,10 @@ if [ "$hooks" -eq 1 ]; then
   else
     hookdir=.githooks
     mkdir -p "$root/.githooks"
-    cp githooks/pre-commit githooks/pre-push "$root/.githooks/"
-    chmod +x "$root/.githooks/pre-commit" "$root/.githooks/pre-push"
+    cp githooks/pre-commit githooks/pre-push githooks/commit-msg \
+       "$root/.githooks/"
+    chmod +x "$root/.githooks/pre-commit" "$root/.githooks/pre-push" \
+             "$root/.githooks/commit-msg"
     cp tools/check-metrics.py tools/check-private.py "$root/tools/"
     cp tools/cq-baseline.template.txt tools/test-vocabulary.template.txt \
        tools/gate.conf.template "$root/tools/"
