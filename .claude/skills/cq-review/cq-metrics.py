@@ -15,7 +15,8 @@ Usage:
   cq-metrics.py [options] <file-or-dir>...
 
 Options:
-  --max-func-lines N   flag functions longer than N lines (default 60)
+  --max-func-lines N   flag functions with more than N code lines (default 60;
+                       comments and blank lines are not counted)
   --max-nest N         flag nesting deeper than N inside a function (default 4)
   --max-params N       flag parameter lists longer than N (default 5)
   --dup-window N       duplicate block size in significant lines (default 8, 0=off)
@@ -344,7 +345,7 @@ def py_params(header):
 
 
 def close_python(func, functions):
-    func["loc"] = func["last"] - func["line"] + 1
+    func["end"] = func["last"]
     functions.append(func)
 
 
@@ -452,12 +453,27 @@ def analyze_file(path, opts, dup_index):
     except OSError as e:
         sys.stderr.write("error: cannot read %s: %s\n" % (path, e))
         return None
+    lines = strip_code(raw).splitlines()
     if os.path.splitext(path)[1] in INDENT_EXTS:
-        functions = analyze_python(strip_code(raw).splitlines())
+        functions = analyze_python(lines)
     else:
-        functions = analyze_braces(strip_code(raw).splitlines())
+        functions = analyze_braces(lines)
+    for func in functions:
+        func["loc"] = code_lines(lines, func["line"], func["end"])
     add_duplicates(path, raw, opts, dup_index)
     return functions
+
+
+def code_lines(lines, start, end):
+    """How many lines of the function are code.
+
+    Comments are already blank at this point, so what is left to skip is
+    blank lines -- which is also what a doc comment leaves behind once its
+    text is gone. Counting the span instead would mean that explaining a
+    function makes it "too long", and a measurement that argues against
+    writing the explanation is worse than no measurement.
+    """
+    return sum(1 for line in lines[start - 1:end] if line.strip())
 
 
 def add_duplicates(path, raw, opts, dup_index):
@@ -500,7 +516,6 @@ def close_brace(func, depth, functions, lineno):
     depth = max(0, depth - 1)
     if func is not None and depth == func["entry_depth"]:
         func["end"] = lineno
-        func["loc"] = lineno - func["line"] + 1
         functions.append(func)
         func = None
     return func, depth
@@ -684,8 +699,8 @@ def main(argv):
             len(long_funcs), len(deep), len(many_params), len(dup_groups)))
         return
 
-    report("Long functions (> %d lines)" % opts["max_func_lines"],
-           ["%s:%d  %s()  %d lines" % (f["file"], f["line"], f["name"],
+    report("Long functions (> %d code lines)" % opts["max_func_lines"],
+           ["%s:%d  %s()  %d code lines" % (f["file"], f["line"], f["name"],
                                        f["loc"]) for f in long_funcs],
            opts["top"])
     report("Deep nesting (> %d levels)" % opts["max_nest"],

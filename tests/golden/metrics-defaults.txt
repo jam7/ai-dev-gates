@@ -1,8 +1,8 @@
-== Long functions (> 12 lines): 4 ==
-  tests/fixtures/braces/decls.cs:12  Read()  14 lines
-  tests/fixtures/braces/receiver.go:19  Load()  14 lines
-  tests/fixtures/braces/shapes.c:8  guarded()  14 lines
-  tests/fixtures/braces/twin.go:18  Save()  14 lines
+== Long functions (> 12 code lines): 4 ==
+  tests/fixtures/braces/decls.cs:12  Read()  14 code lines
+  tests/fixtures/braces/receiver.go:19  Load()  14 code lines
+  tests/fixtures/braces/shapes.c:8  guarded()  14 code lines
+  tests/fixtures/braces/twin.go:18  Save()  14 code lines
 
 == Deep nesting (> 2 levels): 3 ==
   tests/fixtures/python/shapes.py:31  Holder.deep()  depth 5

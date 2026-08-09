@@ -1,30 +1,30 @@
-== Long functions (> 0 lines): 26 ==
-  tests/fixtures/braces/decls.cs:12  Read()  14 lines
-  tests/fixtures/braces/receiver.go:19  Load()  14 lines
-  tests/fixtures/braces/shapes.c:8  guarded()  14 lines
-  tests/fixtures/braces/twin.go:18  Save()  14 lines
-  tests/fixtures/python/shapes.py:41  Holder.chain()  11 lines
-  tests/fixtures/python/shapes.py:54  wrapped()  10 lines
-  tests/fixtures/python/shapes.py:31  Holder.deep()  8 lines
-  tests/fixtures/python/tabs.py:1  tabbed()  8 lines
-  tests/fixtures/python/shapes.py:74  outer()  7 lines
-  tests/fixtures/braces/shapes.c:30  quoting()  6 lines
-  tests/fixtures/python/shapes.py:66  continued()  6 lines
-  tests/fixtures/braces/decls_twin.cs:12  Write()  5 lines
-  tests/fixtures/braces/literals.js:6  describe()  5 lines
-  tests/fixtures/braces/literals.js:12  quoting()  5 lines
-  tests/fixtures/braces/literals.rs:17  tabulate()  3 lines
-  tests/fixtures/braces/receiver.go:35  Raw()  3 lines
-  tests/fixtures/braces/shapes.c:25  many()  3 lines
-  tests/fixtures/python/shapes.py:19  flat()  3 lines
-  tests/fixtures/python/shapes.py:27  Holder.__init__()  3 lines
-  tests/fixtures/python/imports_a.py:11  widen()  2 lines
-  tests/fixtures/python/imports_b.py:9  narrow()  2 lines
-  tests/fixtures/python/shapes.py:77  outer.inner()  2 lines
-  tests/fixtures/braces/shapes.c:42  shallow()  1 lines
-  tests/fixtures/coupling/src/util/log.c:3  log_line()  1 lines
-  tests/fixtures/coupling/src/net/session.c:2  session_open()  1 lines
-  tests/fixtures/coupling/src/core/engine.c:2  engine_run()  1 lines
+== Long functions (> 0 code lines): 26 ==
+  tests/fixtures/braces/decls.cs:12  Read()  14 code lines
+  tests/fixtures/braces/receiver.go:19  Load()  14 code lines
+  tests/fixtures/braces/shapes.c:8  guarded()  14 code lines
+  tests/fixtures/braces/twin.go:18  Save()  14 code lines
+  tests/fixtures/python/shapes.py:41  Holder.chain()  10 code lines
+  tests/fixtures/python/shapes.py:54  wrapped()  10 code lines
+  tests/fixtures/python/shapes.py:31  Holder.deep()  8 code lines
+  tests/fixtures/python/tabs.py:1  tabbed()  8 code lines
+  tests/fixtures/braces/shapes.c:30  quoting()  6 code lines
+  tests/fixtures/braces/decls_twin.cs:12  Write()  5 code lines
+  tests/fixtures/braces/literals.js:6  describe()  5 code lines
+  tests/fixtures/braces/literals.js:12  quoting()  5 code lines
+  tests/fixtures/python/shapes.py:66  continued()  5 code lines
+  tests/fixtures/python/shapes.py:74  outer()  5 code lines
+  tests/fixtures/braces/literals.rs:17  tabulate()  3 code lines
+  tests/fixtures/braces/receiver.go:35  Raw()  3 code lines
+  tests/fixtures/braces/shapes.c:25  many()  3 code lines
+  tests/fixtures/python/shapes.py:19  flat()  3 code lines
+  tests/fixtures/python/shapes.py:27  Holder.__init__()  3 code lines
+  tests/fixtures/python/imports_a.py:11  widen()  2 code lines
+  tests/fixtures/python/imports_b.py:9  narrow()  2 code lines
+  tests/fixtures/python/shapes.py:77  outer.inner()  2 code lines
+  tests/fixtures/braces/shapes.c:42  shallow()  1 code lines
+  tests/fixtures/coupling/src/util/log.c:3  log_line()  1 code lines
+  tests/fixtures/coupling/src/net/session.c:2  session_open()  1 code lines
+  tests/fixtures/coupling/src/core/engine.c:2  engine_run()  1 code lines
 
 == Deep nesting (> -1 levels): 26 ==
   tests/fixtures/python/shapes.py:31  Holder.deep()  depth 5

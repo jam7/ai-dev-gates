@@ -1,4 +1,4 @@
-== Long functions (> 999 lines): 0 ==
+== Long functions (> 999 code lines): 0 ==
 
 == Deep nesting (> 99 levels): 0 ==
 

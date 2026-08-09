@@ -14,7 +14,8 @@ Usage:
   cq-metrics.py [options] <file-or-dir>...
 
 Options:
-  --max-func-lines N   flag functions longer than N lines (default 60)
+  --max-func-lines N   flag functions with more than N code lines (default 60;
+                       comments and blank lines are not counted)
   --max-nest N         flag nesting deeper than N inside a function (default 4)
   --max-params N       flag parameter lists longer than N (default 5)
   --dup-window N       duplicate block size in significant lines (default 8, 0=off)
