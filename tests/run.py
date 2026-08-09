@@ -27,6 +27,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 GOLDEN = os.path.join(ROOT, 'tests', 'golden')
 METRICS = '.claude/skills/cq-review/cq-metrics.py'
 TRACE = '.claude/skills/spec-dev/trace-matrix.py'
+COUPLING = '.claude/skills/cq-review/cpp-coupling.py'
 
 CASES = [
     # Every function with its length, depth and parameter count.
@@ -45,6 +46,25 @@ CASES = [
         '--dup-window', '4', '--top', '500', 'tests/fixtures']),
     ('metrics-csv', METRICS, [
         '--csv', '--label', 'fixture', 'tests/fixtures']),
+    # Error paths. They are the easiest thing to change by accident while
+    # rearranging option handling, and no other case reaches them.
+    ('metrics-no-paths', METRICS, []),
+    ('metrics-missing-int', METRICS, ['--max-nest']),
+    ('metrics-missing-ext', METRICS, ['--ext']),
+    ('metrics-bad-int', METRICS, ['--max-nest', 'x', 'tests/fixtures']),
+    ('metrics-no-match', METRICS, ['--ext', '.zzz', 'tests/fixtures']),
+    # A cycle (core <-> net), a stable module depended on by both (util,
+    # Ca=2 I=0.00), and the summary counts.
+    ('coupling-report', COUPLING, [
+        '--root', 'tests/fixtures/coupling/src', '--module-depth', '1',
+        'tests/fixtures/coupling/compile_commands.json']),
+    ('coupling-csv', COUPLING, [
+        '--csv', '--root', 'tests/fixtures/coupling/src', '--module-depth', '1',
+        'tests/fixtures/coupling/compile_commands.json']),
+    ('coupling-fail-on-cycle', COUPLING, [
+        '--fail-on-cycle', '--root', 'tests/fixtures/coupling/src',
+        '--module-depth', '1',
+        'tests/fixtures/coupling/compile_commands.json']),
     ('trace-matrix', TRACE, [
         '--code', 'tests/fixtures/trace/tests', 'tests/fixtures/trace/docs']),
     ('trace-matrix-matrix', TRACE, [
@@ -54,11 +74,15 @@ CASES = [
 
 
 def run_case(script, args):
-    """Output of one case, with the exit status recorded alongside it."""
+    """Output of one case, with the exit status recorded alongside it.
+
+    The repository path is masked: a traceback prints absolute paths, and a
+    golden file that only matches on one machine is worse than none.
+    """
     done = subprocess.run([sys.executable, script] + args, cwd=ROOT,
                           capture_output=True, text=True)
-    return '%s\n--- exit %d ---\n' % (
-        (done.stdout + done.stderr).rstrip('\n'), done.returncode)
+    text = (done.stdout + done.stderr).rstrip('\n').replace(ROOT, '<root>')
+    return '%s\n--- exit %d ---\n' % (text, done.returncode)
 
 
 def golden_path(name):

@@ -1,0 +1,8 @@
+[
+  {"directory": "tests/fixtures/coupling", "file": "src/core/engine.c",
+   "command": "cc -Isrc -c src/core/engine.c"},
+  {"directory": "tests/fixtures/coupling", "file": "src/net/session.c",
+   "command": "cc -Isrc -c src/net/session.c"},
+  {"directory": "tests/fixtures/coupling", "file": "src/util/log.c",
+   "command": "cc -Isrc -c src/util/log.c"}
+]

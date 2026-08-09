@@ -418,15 +418,24 @@ def analyze_braces(lines):
     return functions
 
 
+def walk_tree(top, exts):
+    """Matching files under [top]. Dot-directories are skipped, so a scan of a
+    project does not wander into .git or .claude."""
+    found = []
+    for root, dirs, names in os.walk(top):
+        dirs[:] = [d for d in dirs if not d.startswith(".")]
+        found.extend(os.path.join(root, name) for name in sorted(names)
+                     if os.path.splitext(name)[1] in exts)
+    return found
+
+
 def collect_files(paths, exts):
+    """The files to measure. A path given explicitly is taken as given; only a
+    directory scan filters by extension."""
     files = []
     for p in paths:
         if os.path.isdir(p):
-            for root, dirs, names in os.walk(p):
-                dirs[:] = [d for d in dirs if not d.startswith(".")]
-                for name in sorted(names):
-                    if os.path.splitext(name)[1] in exts:
-                        files.append(os.path.join(root, name))
+            files.extend(walk_tree(p, exts))
         elif os.path.isfile(p):
             files.append(p)
         else:
@@ -444,7 +453,20 @@ def report(title, rows, top):
     print()
 
 
-def main(argv):
+INT_OPTS = ("--max-func-lines", "--max-nest", "--max-params",
+            "--dup-window", "--top")
+
+
+def option_value(argv, i, name, what="a value"):
+    """The value after argv[i], or exit if the option was given without one."""
+    if i + 1 >= len(argv):
+        sys.stderr.write("error: %s needs %s\n" % (name, what))
+        sys.exit(2)
+    return argv[i + 1]
+
+
+def parse_args(argv):
+    """Returns (opts, paths). Exits on a malformed option."""
     opts = {"max_func_lines": 60, "max_nest": 4, "max_params": 5,
             "dup_window": 8, "top": 20, "ext": DEFAULT_EXTS,
             "csv": False, "label": "-"}
@@ -452,28 +474,24 @@ def main(argv):
     i = 1
     while i < len(argv):
         a = argv[i]
-        if a in ("--max-func-lines", "--max-nest", "--max-params",
-                 "--dup-window", "--top"):
-            key = a[2:].replace("-", "_")
-            i += 1
+        if a in INT_OPTS:
             try:
-                opts[key] = int(argv[i])
-            except (IndexError, ValueError):
+                opts[a[2:].replace("-", "_")] = int(
+                    option_value(argv, i, a, "an integer"))
+            except ValueError:
                 sys.stderr.write("error: %s needs an integer\n" % a)
                 sys.exit(2)
+            i += 1
         elif a == "--csv":
             opts["csv"] = True
         elif a == "--label":
+            opts["label"] = option_value(argv, i, a)
             i += 1
-            if i >= len(argv):
-                sys.stderr.write("error: --label needs a value\n")
-                sys.exit(2)
-            opts["label"] = argv[i]
         elif a == "--ext":
-            i += 1
             opts["ext"] = tuple(
                 e if e.startswith(".") else "." + e
-                for e in argv[i].split(","))
+                for e in option_value(argv, i, a).split(","))
+            i += 1
         elif a in ("-h", "--help"):
             sys.stdout.write(__doc__)
             sys.exit(0)
@@ -483,7 +501,36 @@ def main(argv):
     if not paths:
         sys.stderr.write(__doc__)
         sys.exit(2)
+    return opts, paths
 
+
+def group_duplicates(dup_index, window):
+    """Windows that appear in more than one place, longest run first.
+
+    A block duplicated over N lines produces N - window + 1 overlapping
+    windows, all shifted by one; they are one finding, so a run of them is
+    collapsed and its extent counted.
+    """
+    groups = []
+    last_locs = None
+    for key in sorted(dup_index, key=lambda k: (dup_index[k][0], k)):
+        locs = dup_index[key]
+        if len(locs) < 2:
+            continue
+        shifted = last_locs is not None and len(locs) == len(last_locs) and \
+            all(a == b and y == x + 1
+                for (a, x), (b, y) in zip(last_locs, locs))
+        last_locs = locs
+        if shifted:
+            groups[-1]["extent"] += 1
+        else:
+            groups.append({"locs": locs, "extent": window})
+    groups.sort(key=lambda g: (-len(g["locs"]), -g["extent"]))
+    return groups
+
+
+def main(argv):
+    opts, paths = parse_args(argv)
     files = collect_files(paths, opts["ext"])
     if not files:
         sys.stderr.write("error: no source files matched %s\n"
@@ -508,23 +555,7 @@ def main(argv):
                           if f["params"] > opts["max_params"]),
                          key=lambda f: -f["params"])
 
-    dup_groups = []
-    last_locs = None
-    for key in sorted(dup_index,
-                      key=lambda k: (dup_index[k][0], k)):
-        locs = dup_index[key]
-        if len(locs) < 2:
-            continue
-        # collapse runs of shifted windows over the same duplicate
-        shifted = last_locs is not None and len(locs) == len(last_locs) and \
-            all(a == b and y == x + 1
-                for (a, x), (b, y) in zip(last_locs, locs))
-        last_locs = locs
-        if shifted:
-            dup_groups[-1]["extent"] += 1
-            continue
-        dup_groups.append({"locs": locs, "extent": opts["dup_window"]})
-    dup_groups.sort(key=lambda g: (-len(g["locs"]), -g["extent"]))
+    dup_groups = group_duplicates(dup_index, opts["dup_window"])
 
     if opts["csv"]:
         print("%s,%d,%d,%d,%d,%d,%d" % (

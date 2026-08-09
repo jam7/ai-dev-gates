@@ -1,0 +1,2 @@
+error: no source files matched .zzz
+--- exit 2 ---

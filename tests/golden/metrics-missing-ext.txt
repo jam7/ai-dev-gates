@@ -1,0 +1,2 @@
+error: --ext needs a value
+--- exit 2 ---

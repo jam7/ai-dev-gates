@@ -1,0 +1,29 @@
+Code quality metrics for brace-style languages (C/C++/Go/Java/JS/Rust etc)
+and Python.
+
+Heuristic candidate finder for code review: long functions, deep nesting,
+long parameter lists, duplicated code blocks. It intentionally trades parsing
+precision for zero dependencies — treat results as review candidates, not
+verdicts. Stdlib only, Python 3.6+.
+
+Blocks are counted by brace depth, or by indentation level in Python. Neither
+is a parse: a `def` is found by pattern and its body is what is indented under
+it, the same way a `{` opens a block elsewhere.
+
+Usage:
+  cq-metrics.py [options] <file-or-dir>...
+
+Options:
+  --max-func-lines N   flag functions longer than N lines (default 60)
+  --max-nest N         flag nesting deeper than N inside a function (default 4)
+  --max-params N       flag parameter lists longer than N (default 5)
+  --dup-window N       duplicate block size in significant lines (default 8, 0=off)
+  --ext .a,.b          comma-separated extensions for directory scan
+  --top N              show at most N findings per category (default 20)
+  --csv                print one CSV data line instead of the report:
+                       label,files,functions,long_funcs,deep_nest,long_params,dup_groups
+                       (for trend tracking: cq-metrics.py --csv --label $(git rev-parse --short HEAD) src/ >> cq-trend.csv)
+  --label TEXT         label for the --csv line (e.g. commit hash; default "-")
+
+Exit codes: 0 = ran (findings are informational), 2 = usage/file error.
+--- exit 2 ---

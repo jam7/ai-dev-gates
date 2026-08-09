@@ -16,5 +16,5 @@
   ~9 lines x 2 sites: tests/fixtures/braces/receiver.go:21, tests/fixtures/braces/twin.go:20
 
 == Summary ==
-  files: 9, functions: 20, flagged: long=4 deep=3 params=1 dup-groups=1
+  files: 15, functions: 23, flagged: long=4 deep=3 params=1 dup-groups=1
 --- exit 0 ---

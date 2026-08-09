@@ -32,15 +32,21 @@ ID_RE = re.compile(r"\b([RSDT]-\d+)\b")
 HEAD_DEF_RE = re.compile(r"^#{1,6}\s+([RSDT]-\d+)\b")
 
 
+def walk_tree(top, exts):
+    """Files under [top], skipping dot-directories. [exts] None means all."""
+    found = []
+    for root, dirs, names in os.walk(top):
+        dirs[:] = [d for d in dirs if not d.startswith(".")]
+        found.extend(os.path.join(root, name) for name in sorted(names)
+                     if exts is None or os.path.splitext(name)[1] in exts)
+    return found
+
+
 def collect(paths, exts=None):
     files = []
     for p in paths:
         if os.path.isdir(p):
-            for root, dirs, names in os.walk(p):
-                dirs[:] = [d for d in dirs if not d.startswith(".")]
-                for name in sorted(names):
-                    if exts is None or os.path.splitext(name)[1] in exts:
-                        files.append(os.path.join(root, name))
+            files.extend(walk_tree(p, exts))
         elif os.path.isfile(p):
             files.append(p)
         else:

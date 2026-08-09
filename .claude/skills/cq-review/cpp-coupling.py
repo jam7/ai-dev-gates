@@ -202,7 +202,9 @@ def strongly_connected(adj):
         counter[0] += 1
         stack.append(v)
         on_stack.add(v)
-        for w in adj.get(v, ()):
+        # Sorted: the neighbours are a set, and iterating one in hash order
+        # would make the component order differ from run to run.
+        for w in sorted(adj.get(v, ())):
             if w not in index:
                 strong(w)
                 low[v] = min(low[v], low[w])
@@ -222,7 +224,72 @@ def strongly_connected(adj):
     for v in sorted(adj):
         if v not in index:
             strong(v)
+    sccs.sort()
     return sccs
+
+
+def module_graph(file_edges, root, depth):
+    """Module dependency graph from file-level includes.
+
+    Returns (adj, pair_count): who depends on whom, and how many file edges
+    each module pair rests on. Edges inside one module are not dependencies.
+    """
+    adj = {}         # module -> set of modules it depends on
+    pair_count = {}  # (src_mod, dst_mod) -> file-level edge count
+    # Sorted: file_edges is a set, and the order it is walked in decides the
+    # insertion order of adj, which decides how ties are broken in the report.
+    for src, dst in sorted(file_edges):
+        ms = module_of(src, root, depth)
+        md = module_of(dst, root, depth)
+        if ms == md:
+            continue
+        adj.setdefault(ms, set()).add(md)
+        adj.setdefault(md, set())
+        pair_count[(ms, md)] = pair_count.get((ms, md), 0) + 1
+    return adj, pair_count
+
+
+def module_rows(adj):
+    """(module, Ca, Ce, instability) per module.
+
+    Ca counts the modules depending on it, Ce the ones it depends on, and
+    I = Ce/(Ca+Ce): 0 means nothing here changes for anyone else's sake.
+    """
+    ca = {m: 0 for m in adj}
+    for deps in adj.values():
+        for d in deps:
+            ca[d] += 1
+    rows = []
+    for m in adj:
+        ce = len(adj[m])
+        i_val = ce / (ca[m] + ce) if (ca[m] + ce) else 0.0
+        rows.append((m, ca[m], ce, i_val))
+    return rows
+
+
+def print_csv(rows, in_cycle):
+    print("module,ca,ce,instability,in_cycle")
+    for m, c_a, c_e, i_val in sorted(rows):
+        print("%s,%d,%d,%.2f,%d" % (m, c_a, c_e, i_val,
+                                    1 if m in in_cycle else 0))
+
+
+def print_report(rows, sccs, in_cycle, opts):
+    print("== Module cycles: %d ==" % len(sccs))
+    for comp in sccs[:opts["top"]]:
+        print("  " + " <-> ".join(comp))
+    warn = sorted((r for r in rows
+                   if r[1] >= opts["min_ca"] and r[3] >= 0.5),
+                  key=lambda r: (-r[1] * r[3], r[0]))
+    print("== Unstable but widely depended on"
+          " (Ca >= %d, I >= 0.5): %d ==" % (opts["min_ca"], len(warn)))
+    for m, c_a, c_e, i_val in warn[:opts["top"]]:
+        print("  %-40s Ca=%-3d Ce=%-3d I=%.2f" % (m, c_a, c_e, i_val))
+    print("== Module metrics (top fan-in) ==")
+    for m, c_a, c_e, i_val in sorted(
+            rows, key=lambda r: (-r[1], r[0]))[:opts["top"]]:
+        mark = "  [cycle]" if m in in_cycle else ""
+        print("  %-40s Ca=%-3d Ce=%-3d I=%.2f%s" % (m, c_a, c_e, i_val, mark))
 
 
 def main(argv):
@@ -232,53 +299,18 @@ def main(argv):
     if not units:
         die("no translation units in %s" % opts["db"])
     root = opts["root"] or os.path.commonpath(units)
-    existing = file_index(root)
-    file_edges, files_seen = build_file_graph(units, inc_dirs, root, existing)
+    file_edges, files_seen = build_file_graph(units, inc_dirs, root,
+                                              file_index(root))
 
-    adj = {}        # module -> set of modules it depends on
-    pair_count = {}  # (src_mod, dst_mod) -> file-level edge count
-    for src, dst in file_edges:
-        ms = module_of(src, root, opts["depth"])
-        md = module_of(dst, root, opts["depth"])
-        if ms == md:
-            continue
-        adj.setdefault(ms, set()).add(md)
-        adj.setdefault(md, set())
-        pair_count[(ms, md)] = pair_count.get((ms, md), 0) + 1
-
-    ca = {m: 0 for m in adj}
-    for m, deps in adj.items():
-        for d in deps:
-            ca[d] += 1
-    rows = []
-    for m in adj:
-        ce = len(adj[m])
-        i_val = ce / (ca[m] + ce) if (ca[m] + ce) else 0.0
-        rows.append((m, ca[m], ce, i_val))
-
+    adj, pair_count = module_graph(file_edges, root, opts["depth"])
+    rows = module_rows(adj)
     sccs = strongly_connected(adj)
     in_cycle = {m for comp in sccs for m in comp}
 
     if opts["csv"]:
-        print("module,ca,ce,instability,in_cycle")
-        for m, c_a, c_e, i_val in sorted(rows):
-            print("%s,%d,%d,%.2f,%d" % (m, c_a, c_e, i_val,
-                                        1 if m in in_cycle else 0))
+        print_csv(rows, in_cycle)
     else:
-        print("== Module cycles: %d ==" % len(sccs))
-        for comp in sccs[:opts["top"]]:
-            print("  " + " <-> ".join(comp))
-        warn = sorted((r for r in rows
-                       if r[1] >= opts["min_ca"] and r[3] >= 0.5),
-                      key=lambda r: (-r[1] * r[3], r[0]))
-        print("== Unstable but widely depended on"
-              " (Ca >= %d, I >= 0.5): %d ==" % (opts["min_ca"], len(warn)))
-        for m, c_a, c_e, i_val in warn[:opts["top"]]:
-            print("  %-40s Ca=%-3d Ce=%-3d I=%.2f" % (m, c_a, c_e, i_val))
-        print("== Module metrics (top fan-in) ==")
-        for m, c_a, c_e, i_val in sorted(rows, key=lambda r: -r[1])[:opts["top"]]:
-            mark = "  [cycle]" if m in in_cycle else ""
-            print("  %-40s Ca=%-3d Ce=%-3d I=%.2f%s" % (m, c_a, c_e, i_val, mark))
+        print_report(rows, sccs, in_cycle, opts)
         print("== Summary ==")
         print("  TUs: %d, files parsed: %d, modules: %d (depth %d),"
               " module deps: %d, cycles: %d"
