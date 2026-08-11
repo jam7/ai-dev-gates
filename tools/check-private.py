@@ -30,6 +30,15 @@ file exists. It lists real names, so it belongs in a private notes repository
 and never in the checked one -- a list of things that must not leak is itself
 the worst thing to leak.
 
+Deliberate exceptions are declared in tools/private-allow.txt (see --allow),
+with the reason above each entry, the same shape as cq-baseline.txt. A plain
+token is accepted everywhere (a protocol constant, the one address examples
+use); `historical: TOKEN` is accepted only when scanning existing revisions,
+for data that published history keeps but new content must not use; and
+`key: NAME = V1 V2 ...` restricts what assignments to NAME may say, for
+KEY=value examples whose leaked values are ordinary words no denylist would
+predict. The denylist is never silenced by this file.
+
 Usage:
   check-private.py --staged            what is about to be committed
   check-private.py --range A..B        every revision in a range, and messages
@@ -38,6 +47,7 @@ Usage:
 
   --vocabulary PATH   default tools/test-vocabulary.txt
   --denylist PATH     default notes/private-patterns.txt
+  --allow PATH        default tools/private-allow.txt
   --data-scope RE     files whose data must use the vocabulary, repeatable
   --scan-scope RE     files scanned at all (defaults to the data scope plus
                       lib/ and src/), repeatable
@@ -50,6 +60,7 @@ import sys
 
 DEFAULT_VOCAB = os.path.join('tools', 'test-vocabulary.txt')
 DEFAULT_DENYLIST = os.path.join('notes', 'private-patterns.txt')
+DEFAULT_ALLOW = os.path.join('tools', 'private-allow.txt')
 
 SOURCE_EXT = (r'\.(dart|py|js|jsx|ts|tsx|go|java|kt|rs|c|cc|cpp|cxx|h|hpp|'
               r'swift|rb|php|cs|scala|m|mm)$')
@@ -92,6 +103,10 @@ STRUCTURAL = [
     (re.compile(r'(?<![\d.])\d{12,}(?![\d.])'), 'long numeric id'),
 ]
 
+# KEY=value assignments, for the keyed example-value check. Only keys declared
+# in the allow file are checked, so the generic shape costs nothing.
+KEY_ASSIGN = re.compile(r'\b([A-Z][A-Z0-9_]{2,})=(\S+)')
+
 # String literals are pure data, so all of one is worth looking at. Backticks
 # are included for Go's raw strings, where a path is most likely to sit
 # verbatim; the cost is that a `code span` in a comment is read as a literal
@@ -127,6 +142,8 @@ class Policy:
         self.vocabulary_known = os.path.exists(vocab)
         self.tokens, self.patterns = load_vocabulary(vocab)
         self.denylist = load_denylist(abspath(root, args.denylist))
+        self.allow_current, self.allow_historical, self.keyed = \
+            load_allow(abspath(root, args.allow))
         self.data_scope = compile_all(args.data_scope or DEFAULT_DATA_SCOPE)
         scan = args.scan_scope or (
             tuple(args.data_scope or ()) + DEFAULT_SCAN_SCOPE)
@@ -149,6 +166,12 @@ class Policy:
         return all(s in self.tokens
                    or any(p.fullmatch(s) for p in self.patterns)
                    for s in segments)
+
+    def allowed(self, hit, historical):
+        """Whether this token was declared acceptable -- everywhere, or in
+        already-existing revisions when [historical]."""
+        return hit in self.allow_current or \
+            (historical and hit in self.allow_historical)
 
 
 def abspath(root, path):
@@ -198,6 +221,32 @@ def load_denylist(path):
         return [t for t in (strip_comment(l) for l in f) if t]
 
 
+def load_allow(path):
+    """Declared exceptions. Three line forms (reasons live in comments above
+    each entry, like cq-baseline.txt):
+
+      TOKEN                  accepted everywhere
+      historical: TOKEN      accepted only when scanning existing revisions
+      key: NAME = V1 V2 ...  values that assignments to NAME may use
+    """
+    current, historical, keyed = set(), set(), {}
+    if not os.path.exists(path):
+        return current, historical, keyed
+    with open(path, encoding='utf-8') as f:
+        for line in f:
+            line = strip_comment(line)
+            if not line:
+                continue
+            if line.startswith('historical:'):
+                historical.add(line[len('historical:'):].strip())
+            elif line.startswith('key:'):
+                name, _, values = line[len('key:'):].partition('=')
+                keyed[name.strip()] = set(values.split())
+            else:
+                current.add(line)
+    return current, historical, keyed
+
+
 def looks_like_content(text, cjk_counts=True):
     """Whether this span is the kind of thing real data hides in.
 
@@ -233,21 +282,39 @@ def literals_of(path, content):
         yield content[:m.start()].count('\n') + 1, text
 
 
-def check_content(path, content, policy):
+def check_line(where, lineno, line, policy, historical):
+    """The checks every scanned line gets: structural patterns, keyed example
+    values, denylist. The denylist ignores the allow file on purpose: a known
+    private name is never acceptable, only tolerated in history by removal."""
+    problems = []
+    for rx, why in STRUCTURAL:
+        m = rx.search(line)
+        if m and not policy.known(m.group(0)) \
+                and not policy.allowed(m.group(0), historical):
+            problems.append((where, lineno, why, m.group(0)))
+    for key, value in KEY_ASSIGN.findall(line):
+        expected = policy.keyed.get(key)
+        if expected is not None and value not in expected \
+                and not policy.allowed(value, historical):
+            problems.append((where, lineno,
+                             '%s is not one of the example values' % key,
+                             value))
+    for term in policy.denylist:
+        if term.lower() in line.lower():
+            problems.append((where, lineno, 'known private name', term))
+    return problems
+
+
+def check_content(path, content, policy, historical=False):
     problems = []
     for lineno, line in enumerate(content.split('\n'), 1):
-        for rx, why in STRUCTURAL:
-            m = rx.search(line)
-            if m and not policy.known(m.group(0)):
-                problems.append((path, lineno, why, m.group(0)))
-        for term in policy.denylist:
-            if term.lower() in line.lower():
-                problems.append((path, lineno, 'known private name', term))
+        problems += check_line(path, lineno, line, policy, historical)
 
     if policy.in_data_scope(path):
         cjk_counts = not path.endswith('.md')
         for lineno, text in literals_of(path, content):
-            if looks_like_content(text, cjk_counts) and not policy.known(text):
+            if looks_like_content(text, cjk_counts) and not policy.known(text) \
+                    and not policy.allowed(text, historical):
                 problems.append((path, lineno,
                                  'not in the test vocabulary', text))
     return problems
@@ -281,23 +348,19 @@ def check_worktree(policy):
 
 
 def check_message(rev, policy):
-    """A commit message carries data too, and is not caught by any file scan."""
+    """A commit message carries data too, and is not caught by any file scan.
+    Messages only exist in revisions, so the historical allowances apply."""
     problems = []
     message = git(policy.root, 'log', '-1', '--format=%B', rev)
     for lineno, line in enumerate(message.split('\n'), 1):
         where = rev[:9] + ' (message)'
-        for term in policy.denylist:
-            if term.lower() in line.lower():
-                problems.append((where, lineno, 'known private name', term))
-        for rx, why in STRUCTURAL:
-            m = rx.search(line)
-            if m and not policy.known(m.group(0)):
-                problems.append((where, lineno, why, m.group(0)))
+        problems += check_line(where, lineno, line, policy, historical=True)
         if not policy.vocabulary_known:
             continue
         for m in MD_TOKEN.finditer(line):
             token = m.group(0).strip()
-            if looks_like_content(token, False) and not policy.known(token):
+            if looks_like_content(token, False) and not policy.known(token) \
+                    and not policy.allowed(token, True):
                 problems.append((where, lineno,
                                  'not in the test vocabulary', token))
     return problems
@@ -318,7 +381,8 @@ def check_revisions(revs, policy):
             if not policy.in_scan_scope(path):
                 continue
             content = git(policy.root, 'show', '%s:%s' % (rev, path))
-            for p, lineno, why, hit in check_content(path, content, policy):
+            for p, lineno, why, hit in check_content(path, content, policy,
+                                                     historical=True):
                 problems.append(('%s %s' % (rev[:9], p), lineno, why, hit))
     return problems
 
@@ -333,22 +397,26 @@ def parse_args():
     g.add_argument('--all-history', action='store_true')
     ap.add_argument('--vocabulary', default=DEFAULT_VOCAB, metavar='PATH')
     ap.add_argument('--denylist', default=DEFAULT_DENYLIST, metavar='PATH')
+    ap.add_argument('--allow', default=DEFAULT_ALLOW, metavar='PATH')
     ap.add_argument('--data-scope', action='append', metavar='RE')
     ap.add_argument('--scan-scope', action='append', metavar='RE')
     return ap.parse_args()
 
 
-def report(problems, policy, vocabulary_path):
+def report(problems, policy, args):
     print('Private data check failed:\n', file=sys.stderr)
     for path, lineno, why, hit in problems:
         print('  %s:%s: %s: %s' % (path, lineno, why, hit), file=sys.stderr)
     print('\n%d problem(s).\n' % len(problems), file=sys.stderr)
+    print('A deliberate exception (an example value, a protocol constant) is',
+          file=sys.stderr)
+    print('declared in %s with its reason.' % args.allow, file=sys.stderr)
     if not policy.vocabulary_known:
         print('Only the structural checks ran: %s does not exist.'
-              % vocabulary_path, file=sys.stderr)
+              % args.vocabulary, file=sys.stderr)
         return
     print('If this is real data, replace it with names from %s.'
-          % vocabulary_path, file=sys.stderr)
+          % args.vocabulary, file=sys.stderr)
     print('If it is invented and the check is simply unaware of it, add it to '
           'that file', file=sys.stderr)
     print('-- that is the point: new test data is declared, not assumed.',
@@ -370,7 +438,7 @@ def main():
 
     if not problems:
         return 0
-    report(problems, policy, args.vocabulary)
+    report(problems, policy, args)
     return 1
 
 

@@ -183,7 +183,7 @@ if [ "$hooks" -eq 1 ]; then
              "$root/.githooks/commit-msg"
     cp tools/check-metrics.py tools/check-private.py "$root/tools/"
     cp tools/cq-baseline.template.txt tools/test-vocabulary.template.txt \
-       tools/gate.conf.template "$root/tools/"
+       tools/private-allow.template.txt tools/gate.conf.template "$root/tools/"
     chmod +x "$root/tools/check-metrics.py" "$root/tools/check-private.py"
   fi
   # The project's own files: created when missing and never replaced, not even
