@@ -1,8 +1,10 @@
-# What the commit gate measures in this project. Sourced by .githooks/pre-commit.
+# What the commit gate measures in this project. Sourced by the hooks in
+# .githooks/, which come from https://github.com/jam7/ai-dev-gates
 #
-# This file is yours: install.sh creates it when it is missing and never
-# replaces it, so updating the hooks cannot reset what you configured here.
-# Shell syntax, since the hook sources it -- assignments only, no commands.
+# This file is yours: install.sh (in that repository) creates it when it is
+# missing and never replaces it, so updating the hooks cannot reset what you
+# configured here. Shell syntax, since the hooks source it -- assignments
+# only, no commands.
 
 # Extensions the structure check measures, comma separated. Empty measures
 # every language cq-metrics.py knows. Narrowing it to the production language

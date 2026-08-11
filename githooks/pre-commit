@@ -12,6 +12,9 @@
 # gate and not the other. Enable the hooks with:
 #   git config core.hooksPath .githooks   (install.sh --hooks does this)
 #
+# This file is a copy. The original, and the install.sh that placed and
+# updates it, live in https://github.com/jam7/ai-dev-gates
+#
 # Nothing project-specific belongs in this file. What each project measures
 # lives in tools/gate.conf, which install.sh creates and never overwrites, so
 # that updating the hooks cannot silently reset it.

@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 """Stop new structural flags from being committed without being declared.
 
+This file is a copy. The original, and the install.sh that placed and
+updates it, live in https://github.com/jam7/ai-dev-gates
+
 cq-metrics.py finds long functions, deep nesting, long parameter lists and
 duplicated blocks. Some of what it finds is deliberate -- a byte-for-byte
 protocol builder is worth more laid out beside the spec than split up -- so a

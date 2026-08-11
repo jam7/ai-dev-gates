@@ -7,6 +7,9 @@
 # revision being pushed, and their messages.
 #
 # Enable with: git config core.hooksPath .githooks
+#
+# This file is a copy. The original, and the install.sh that placed and
+# updates it, live in https://github.com/jam7/ai-dev-gates
 root=$(git rev-parse --show-toplevel)
 [ -f "$root/tools/check-private.py" ] || exit 0
 

@@ -12,6 +12,9 @@
 # coding-rules and the coupling tools") is one change, and the comma is what
 # separates that from a second verb phrase. Measured over this repository's
 # history, the comma form matched every real mix and nothing else.
+#
+# This file is a copy. The original, and the install.sh that placed and
+# updates it, live in https://github.com/jam7/ai-dev-gates
 subject=$(sed -n '1p' "$1")
 
 case "$subject" in

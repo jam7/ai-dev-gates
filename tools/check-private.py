@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 """Stop private data from reaching a repository it must not reach.
 
+This file is a copy. The original, and the install.sh that placed and
+updates it, live in https://github.com/jam7/ai-dev-gates
+
 Written for a public repository whose developer's real data (share layout,
 work titles, server ids) is not public. Rules in CLAUDE.md were not enough --
 real paths leaked several times, in separate sessions, because test data gets
