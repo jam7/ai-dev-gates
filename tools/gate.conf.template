@@ -22,3 +22,10 @@ scope=""
 #
 #   extra_checks="python3 tests/run.py"
 extra_checks=""
+
+# A document of this project's, shown as "see <doc>" when the private-data
+# gate blocks a commit or a push: what counts as private here, and how to
+# recover when something slipped in. Empty shows nothing.
+#
+#   private_doc="docs/private-data.md"
+private_doc=""

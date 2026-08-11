@@ -13,6 +13,9 @@
 root=$(git rev-parse --show-toplevel)
 [ -f "$root/tools/check-private.py" ] || exit 0
 
+private_doc=""   # project document to point at when this gate fires
+[ -f "$root/tools/gate.conf" ] && . "$root/tools/gate.conf"
+
 zero=$(git hash-object --stdin </dev/null | tr '[0-9a-f]' '0')
 status=0
 
@@ -30,5 +33,6 @@ if [ "$status" -ne 0 ]; then
     echo >&2
     echo "Nothing has been pushed. These revisions are still local, so the" >&2
     echo "data can be removed for good." >&2
+    [ -n "$private_doc" ] && echo "see $private_doc" >&2
 fi
 exit "$status"
