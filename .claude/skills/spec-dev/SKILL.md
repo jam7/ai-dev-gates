@@ -16,6 +16,7 @@ TODO.md                                  # やることリスト (repo 直下)
 docs/<feature>/requirements.md           # R-01, R-02, ... (現在の正)
 docs/<feature>/spec.md                   # S-01 (実現する R を明記)
 docs/<feature>/design.md                 # D-01 (実現する S を明記) + ADR
+docs/<feature>/coding.md                 # D↔コード表 + S↔T 表 (実装フェーズで作る)
 notes/YYYYMMDD-<topic>.md                # 調査メモ (作業記録)
 notes/fix-sessions/YYYYMMDD-<topic>.md   # fix-loop の作業台帳
 notes/reviews/YYYYMMDD-<topic>.md        # コードレビュー結果の全文 (冒頭に対象コミット)
@@ -107,18 +108,30 @@ R/S/D/T の定義と参照を走査し、「spec にカバーされていない 
 ### フェーズ 3: 実装
 - D 単位で実装し、コミットメッセージに D-ID を含める (英語)
 - 実装前に coding-rules Skill のルール (rules/*.md) を読み込み、書きながら適用する
+- **coding.md を作り、D↔コード表を書く** (templates/coding.md)。実装コードのコメントには
+  D-ID を書かない — コメントの説明は修正時に一緒に直るが、番号は直らずに残り、
+  古い番号は間違った出自を主張するので無いより悪い。D とファイルの対応は
+  coding.md 側に集約する
+- 実装して設計と変わった点は coding.md の「設計から変えた点」に理由ごと記録する
+  (design.md 本体も取り消し線 + 理由で更新する)
 - AI 実装の場合: 複数回試行になりそうなら fix-loop Skill のプロトコルで進める
 - 実装完了時に cq-review Skill でレビューし、指摘を解消してから人間レビューへ
 - 人間レビュー依頼時は self-review Skill のレビューパックを付ける
 
-**ゲート G3**: ビルドが通る / cq-review の高深刻度指摘ゼロ / 全 D に対応する実装がある
+**ゲート G3**: ビルドが通る / cq-review の高深刻度指摘ゼロ / 全 D に対応する実装がある /
+coding.md の D↔コード表が全 D を持つ
 
 ### フェーズ 4: テスト組み込み
 spec.md の受入条件 1 つにつき最低 1 つのテスト (T-ID) を作る。
 テストには対応する S-ID をコメントで書く。
 
+coding.md に S↔T 表 (どの受入条件をどのテストが確かめるか) と
+「検証していないこと」(自動テストで届かず、実機や手動でしか確認できない範囲。
+対応する R/S を添える) を書く。
+
 **ゲート G4**:
 - 全 S の受入条件に T が対応している (「仕様にあってテストにない ID」がゼロ)
+- coding.md の S↔T 表と「検証していないこと」が書かれている
 - 境界条件・異常系のテストが正常系と同数程度あるか
 - テストは実装前に失敗し実装後に通ることを確認したか (可能な場合)
 - lit ベースなら結果の確認は triage Skill を使う
