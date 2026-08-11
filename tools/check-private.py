@@ -309,7 +309,10 @@ def check_revisions(revs, policy):
     problems = []
     for rev in revs:
         problems += check_message(rev, policy)
-        changed = git(policy.root, 'diff-tree', '-r', '--no-commit-id',
+        # --root: without it a parentless commit diffs as empty, and the
+        # repository's first commit -- the largest data dump of all -- would
+        # never be scanned by --range or --all-history.
+        changed = git(policy.root, 'diff-tree', '--root', '-r', '--no-commit-id',
                       '--name-only', '--diff-filter=ACMR', rev).split('\n')
         for path in filter(None, changed):
             if not policy.in_scan_scope(path):
