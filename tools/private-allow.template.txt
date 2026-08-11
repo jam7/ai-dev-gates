@@ -22,13 +22,19 @@
 # The denylist (notes/private-patterns.txt) is never silenced by this file:
 # a known private name is reported even if a matching token is declared here.
 #
+# This template is copied around, so its examples use the documentation
+# range (192.0.2.x), which no check flags. A real entry holds the actual
+# flagged value -- safe to write, because the real allow file is the one
+# file the checker never scans (declaring a value must not block the
+# commit that declares it). The vocabulary and denylist stay scanned.
+#
 # Examples:
 #
 #   # The one address examples may use; chosen from a subnet nobody here has.
 #   192.0.2.10
 #
 #   # The example address before it; the published history keeps it.
-#   historical: 192.168.1.100
+#   historical: 192.0.2.99
 #
 #   # Connection examples in the README must use these placeholder values.
 #   key: DB_HOST = localhost 127.0.0.1 $DB_HOST

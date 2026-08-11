@@ -37,7 +37,11 @@ use); `historical: TOKEN` is accepted only when scanning existing revisions,
 for data that published history keeps but new content must not use; and
 `key: NAME = V1 V2 ...` restricts what assignments to NAME may say, for
 KEY=value examples whose leaked values are ordinary words no denylist would
-predict. The denylist is never silenced by this file.
+predict. The denylist is never silenced by this file. The allow file itself
+is the one file never scanned -- a historical: entry is by definition a
+token new content must not contain, so scanning it would block the act of
+declaring. The vocabulary and an (accidentally committed) denylist stay
+scanned: a real name pasted into either is exactly what must be caught.
 
 Usage:
   check-private.py --staged            what is about to be committed
@@ -144,12 +148,23 @@ class Policy:
         self.denylist = load_denylist(abspath(root, args.denylist))
         self.allow_current, self.allow_historical, self.keyed = \
             load_allow(abspath(root, args.allow))
+        # The allow file is the ONLY file exempt from scanning. A historical:
+        # entry is, by definition, a token new content must not contain, so
+        # scanning the file would block the very act of declaring. The other
+        # two declaration files stay scanned on purpose: a real name pasted
+        # into the vocabulary should trip the denylist, and a denylist
+        # committed into the repository is itself the worst possible leak --
+        # scanning it makes it scream. Templates are also scanned: they get
+        # copied anywhere, so they must be safe by content, not by path rule.
+        self.allow_file = os.path.normpath(abspath(root, args.allow))
         self.data_scope = compile_all(args.data_scope or DEFAULT_DATA_SCOPE)
         scan = args.scan_scope or (
             tuple(args.data_scope or ()) + DEFAULT_SCAN_SCOPE)
         self.scan_scope = compile_all(scan)
 
     def in_scan_scope(self, path):
+        if os.path.normpath(abspath(self.root, path)) == self.allow_file:
+            return False
         return any(p.search(path) for p in self.scan_scope)
 
     def in_data_scope(self, path):
