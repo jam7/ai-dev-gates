@@ -81,15 +81,17 @@ git pull
 ./install.sh /path/to/your-repo --hooks --force
 ```
 
-install.sh は**書き込む前に全ての配置先を調べ、1 つでも上書きになるならエラーで
-何もせず終了します**。チームが編集したルールや手を入れたフックを、再実行で
-失うことがないようにするためです。だから更新時は `--force` が要ります。
+install.sh は**書き込む前に全ての配置先を調べます**。パッケージと同一のものは
+衝突と数えず「up to date」で済み、**差分があるものだけ**をエラーで列挙して
+何もせず終了します。チームが編集したルールや手を入れたフックを、再実行で
+失うことがないようにするためです。差分 = 旧版なら `--force` で更新します。
 
-`--force` を付けても次の 2 つは保持されます。こちら側から再生成できない、
+`--force` を付けても次のファイルは保持されます。こちら側から再生成できない、
 チームの判断そのものだからです。
 
 - `coding-rules/rules/*.md` — チームが編集したルール (`*.template.md` だけ更新)
-- `tools/cq-baseline.txt` / `tools/test-vocabulary.txt` — 宣言ファイル (第 9 章)
+- `tools/gate.conf` と宣言ファイル (`cq-baseline.txt` / `test-vocabulary.txt` /
+  `private-allow.txt`) — 第 9 章
 
 **パスの読み替え**: この README のコマンド例は `~/.claude/skills/...` (ホーム導入) で
 書いてあります。プロジェクト導入の場合はリポジトリ直下からの `.claude/skills/...` に

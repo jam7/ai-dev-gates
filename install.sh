@@ -7,7 +7,7 @@
 #                                       -> commit .claude/skills to share it
 #   ./install.sh /path/to/repo --hooks  also the commit gate (.githooks, tools/)
 #   ./install.sh /path/to/repo --hooks-only   the gate, and not the skills
-#   ...            --force              replace what is already installed
+#   ...            --force              replace what differs (how you update)
 #
 # Run without arguments, or with --help, to see this text.
 #
@@ -15,13 +15,15 @@
 # and a gate wanted in this repository: hooks are per-repository, since
 # core.hooksPath is repository configuration, while skills need not be.
 #
-# Nothing is written until every destination has been checked. If anything
-# would be overwritten the run stops with a list and changes nothing, so an
-# edited rule set or a modified hook is never lost to a re-run; --force is how
-# you say to replace it. Even then, two kinds of file are kept: the team's
-# rules/*.md, and the declaration files (tools/cq-baseline.txt,
-# tools/test-vocabulary.txt), which hold judgements this package cannot
-# regenerate.
+# Nothing is written until every destination has been checked. Anything
+# already identical to this package is left alone and is not a conflict, so
+# re-running after nothing changed just says so. What differs would be
+# overwritten, and the run stops with a list and changes nothing -- an
+# edited rule set or a modified hook is never lost to a re-run; --force is
+# how you say to replace it. Even then, the files that hold your own
+# judgements are kept: the team's rules/*.md, and the per-project files
+# (tools/gate.conf, cq-baseline.txt, test-vocabulary.txt,
+# private-allow.txt), which this package cannot regenerate.
 set -e
 cd "$(dirname "$0")"
 
@@ -104,41 +106,58 @@ if [ -n "$root" ] && [ "$(cd "$root" && pwd -P)" = "$(pwd -P)" ]; then
 fi
 
 # ---- check every destination before writing anything --------------------
+# Only what this script actually writes is checked, and only when the
+# destination differs from what would be written: identical means a re-run,
+# not a conflict. The old check flagged every tools/* file, including
+# gate.conf and cq-baseline.txt, which are never written over at all.
+gate_tools="check-metrics.py check-private.py cq-baseline.template.txt \
+test-vocabulary.template.txt private-allow.template.txt gate.conf.template"
+
 conflicts=""
 add_conflict() {
   conflicts="${conflicts}  $1
 "
 }
 
+skill_unchanged() {
+  diff -rq -x '__pycache__' -x '*.pyc' "$1" "$2" >/dev/null 2>&1
+}
+
 if [ "$self" -eq 0 ] && [ "$hooks_only" -eq 0 ]; then
   for d in "$src"/*/; do
-    if [ -e "$dest/$(basename "$d")" ]; then
-      add_conflict "$dest/$(basename "$d")"
+    name=$(basename "$d")
+    if [ -e "$dest/$name" ] && ! skill_unchanged "$d" "$dest/$name"; then
+      add_conflict "$dest/$name"
     fi
   done
-  if [ -n "$root" ] && [ -f CLAUDE.template.md ] && [ -e "$root/CLAUDE.md" ]; then
+  if [ -n "$root" ] && [ -f CLAUDE.template.md ] && [ -e "$root/CLAUDE.md" ] \
+     && ! cmp -s CLAUDE.template.md "$root/CLAUDE.md"; then
     add_conflict "$root/CLAUDE.md"
   fi
 fi
 if [ "$hooks" -eq 1 ]; then
   for f in githooks/*; do
-    if [ -e "$root/.githooks/$(basename "$f")" ]; then
-      add_conflict "$root/.githooks/$(basename "$f")"
+    t="$root/.githooks/$(basename "$f")"
+    if [ -e "$t" ] && ! cmp -s "$f" "$t"; then
+      add_conflict "$t"
     fi
   done
   if [ "$self" -eq 0 ]; then
-    for f in tools/*; do
-      if [ -e "$root/tools/$(basename "$f")" ]; then
-        add_conflict "$root/tools/$(basename "$f")"
+    for n in $gate_tools; do
+      if [ -e "$root/tools/$n" ] && ! cmp -s "tools/$n" "$root/tools/$n"; then
+        add_conflict "$root/tools/$n"
       fi
     done
   fi
 fi
 
 if [ -n "$conflicts" ] && [ "$force" -eq 0 ]; then
-  echo "error: these already exist and would be replaced:" >&2
+  echo "error: these differ from this package's versions and would be replaced:" >&2
   printf '%s' "$conflicts" >&2
-  echo "nothing was installed. re-run with --force to replace them." >&2
+  echo "nothing was installed." >&2
+  echo "Older versions from a previous install: re-run with --force to update" >&2
+  echo "them (your rules/*.md, gate.conf and the declaration files are kept" >&2
+  echo "even then). Your own edits: merge them into this repository first." >&2
   exit 1
 fi
 
@@ -146,10 +165,15 @@ fi
 if [ "$self" -eq 1 ] && [ "$hooks_only" -eq 0 ]; then
   echo "  skills already here (installing into their own repository)"
 fi
+uptodate=0
 for d in "$src"/*/; do
   [ "$self" -eq 1 ] && break
   [ "$hooks_only" -eq 1 ] && break
   name=$(basename "$d")
+  if [ -e "$dest/$name" ] && skill_unchanged "$d" "$dest/$name"; then
+    uptodate=$((uptodate + 1))
+    continue
+  fi
   saved=""
   if [ -e "$dest/$name" ]; then
     # keep team-managed rule files (rules/*.md); only *.template.md is refreshed
@@ -178,11 +202,15 @@ for d in "$src"/*/; do
   fi
   echo "  installed $name"
 done
+if [ "$uptodate" -gt 0 ]; then
+  echo "  up to date: $uptodate skill(s) already match this package"
+fi
 
 # project install only: provide CLAUDE.md (project conventions) from template.
 # Home installs never touch ~/CLAUDE.md.
 if [ -n "$root" ] && [ -f CLAUDE.template.md ] && [ "$self" -eq 0 ] \
-   && [ "$hooks_only" -eq 0 ]; then
+   && [ "$hooks_only" -eq 0 ] \
+   && ! cmp -s CLAUDE.template.md "$root/CLAUDE.md" 2>/dev/null; then
   cp CLAUDE.template.md "$root/CLAUDE.md"
   echo "  installed CLAUDE.md (project conventions)"
 fi
@@ -200,9 +228,9 @@ if [ "$hooks" -eq 1 ]; then
        "$root/.githooks/"
     chmod +x "$root/.githooks/pre-commit" "$root/.githooks/pre-push" \
              "$root/.githooks/commit-msg"
-    cp tools/check-metrics.py tools/check-private.py "$root/tools/"
-    cp tools/cq-baseline.template.txt tools/test-vocabulary.template.txt \
-       tools/private-allow.template.txt tools/gate.conf.template "$root/tools/"
+    for n in $gate_tools; do
+      cp "tools/$n" "$root/tools/"
+    done
     chmod +x "$root/tools/check-metrics.py" "$root/tools/check-private.py"
   fi
   # The project's own files: created when missing and never replaced, not even
