@@ -2,12 +2,14 @@
 # install.sh - copy the skills (and optionally the commit gate) into place
 #
 # usage:
-#   ./install.sh                        for yourself  -> ~/.claude/skills
+#   ./install.sh --home                 for yourself  -> ~/.claude/skills
 #   ./install.sh /path/to/repo          for a project -> <repo>/.claude/skills
 #                                       -> commit .claude/skills to share it
 #   ./install.sh /path/to/repo --hooks  also the commit gate (.githooks, tools/)
 #   ./install.sh /path/to/repo --hooks-only   the gate, and not the skills
 #   ...            --force              replace what is already installed
+#
+# Run without arguments, or with --help, to see this text.
 #
 # --hooks-only is for the common case of skills installed once in ~/.claude
 # and a gate wanted in this repository: hooks are per-repository, since
@@ -23,16 +25,24 @@
 set -e
 cd "$(dirname "$0")"
 
+usage() {
+  sed -n '2,/^set -e/p' "$0" | sed -e '/^set -e/d' -e 's/^# \{0,1\}//'
+}
+
 root=""
 hooks=0
 hooks_only=0
 force=0
+home_install=0
+[ "$#" -eq 0 ] && { usage; exit 0; }
 for arg in "$@"; do
   case "$arg" in
+    --home) home_install=1 ;;
     --hooks) hooks=1 ;;
     --hooks-only) hooks=1; hooks_only=1 ;;
     --force) force=1 ;;
-    -*) echo "error: unknown option: $arg" >&2; exit 2 ;;
+    -h|--help) usage; exit 0 ;;
+    -*) echo "error: unknown option: $arg (try --help)" >&2; exit 2 ;;
     *)
       if [ -n "$root" ]; then
         echo "error: more than one project directory given" >&2
@@ -41,6 +51,15 @@ for arg in "$@"; do
       root="$arg" ;;
   esac
 done
+
+if [ "$home_install" -eq 1 ] && [ -n "$root" ]; then
+  echo "error: --home and a project directory are two different targets" >&2
+  exit 2
+fi
+if [ "$home_install" -eq 0 ] && [ -z "$root" ]; then
+  echo "error: say where to install: --home, or a project directory (try --help)" >&2
+  exit 2
+fi
 
 # source dir: skills/ in the distribution package, or .claude/skills when
 # running from a repo that tracks the installed form

@@ -47,8 +47,10 @@ git commit -m "Add AI dev skills"
 ```bash
 git clone https://github.com/jam7/ai-dev-gates.git
 cd ai-dev-gates
-./install.sh        # ~/.claude/skills/ にコピー。全プロジェクトで有効
+./install.sh --home # ~/.claude/skills/ にコピー。全プロジェクトで有効
 ```
+
+引数なしの `./install.sh` (または `--help`) は使い方を表示します。
 
 インストール後に Claude Code / Copilot を起動 (プロジェクト導入ならそのリポジトリ内で)
 すると自動的に認識されます。両方に同名 Skill を入れると紛らわしいので、
