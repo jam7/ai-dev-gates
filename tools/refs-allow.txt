@@ -1,0 +1,10 @@
+# Hex tokens check-refs.py accepts in tracking documents, and why. One token
+# per line, reason above it (the cq-baseline contract). Do not let this grow
+# into an ignore list: a commit reference is never declared here, it gets
+# rewritten as the commit's subject (rules/40-references.md).
+
+# Planted tokens in this repository's own test fixtures (tests/fixtures/refs/).
+# They exist to be flagged by the golden tests, not to reference anything.
+9a3bc12
+deadc0de5
+3fa9bb21

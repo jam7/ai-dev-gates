@@ -28,6 +28,7 @@ GOLDEN = os.path.join(ROOT, 'tests', 'golden')
 METRICS = '.claude/skills/cq-review/cq-metrics.py'
 TRACE = '.claude/skills/spec-dev/trace-matrix.py'
 COUPLING = '.claude/skills/cq-review/cpp-coupling.py'
+REFS = 'tools/check-refs.py'
 
 CASES = [
     # Every function with its length, depth and parameter count.
@@ -77,6 +78,14 @@ CASES = [
     ('trace-gate', TRACE, ['tests/fixtures/trace-gate/docs']),
     # Fully compliant documents pass the gates with exit 0, no gate file.
     ('trace-gate-clean', TRACE, ['tests/fixtures/trace-gate/clean']),
+    # Hash-shaped tokens in tracking documents are flagged alive or dead;
+    # dates, decimal ids and hex-only English words stay quiet. --allow
+    # /dev/null: this repository's own refs-allow.txt declares the planted
+    # tokens so that committing the fixtures passes its own gate.
+    ('refs-hit', REFS, ['--allow', '/dev/null', 'tests/fixtures/refs/bad']),
+    # A declared checksum passes: the declaration path.
+    ('refs-allow', REFS, ['--allow', 'tests/fixtures/refs/allow/refs-allow.txt',
+                          'tests/fixtures/refs/allow/docs']),
 ]
 
 

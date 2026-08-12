@@ -1,0 +1,2 @@
+# The tarball checksum in release.md is a record, not a commit reference.
+3fa9bb21
