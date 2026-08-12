@@ -1,0 +1,8 @@
+== Definitions ==
+  R: 3, S: 4, D: 0, T: 0
+
+== Problems: 3 ==
+  R-02: section lacks 「境界条件」 (tests/fixtures/trace-gate/docs/requirements.md:11)
+  S-02: section lacks 「境界条件・エラー時」 (tests/fixtures/trace-gate/docs/spec.md:12)
+  tests/fixtures/trace-gate/docs/spec.md:25: ambiguous 「適切に」 (S-04)
+--- exit 1 ---

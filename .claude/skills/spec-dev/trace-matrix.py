@@ -9,6 +9,22 @@ references (any other occurrence), then reports coverage holes:
   - IDs referenced but never defined (typo detection)
   - IDs defined more than once
 
+Two gate checks that used to be done by eye (an ad-hoc one-liner once
+reported all 10 sections as missing when 3 were):
+  - every section of a kind carries its required subheadings
+    (default: S needs 受入条件 and 境界条件・エラー時, R needs 入出力例 and
+    境界条件 -- the fields the shipped templates use)
+  - no ambiguous wording inside an ID's section, in requirements and spec
+    docs (適切に / 必要に応じて / など / 高速に / 柔軟に / 原則として)
+
+Both are declared per feature in <docs-dir>/trace-gate.txt, same philosophy
+as tools/cq-baseline.txt: an exception passes only with a written reason.
+  require: S = 受入条件, 境界条件・エラー時   what a kind's section needs
+  require: R =                               (empty list disables the check)
+  words: など, 適切に                         replace the ambiguous-word list
+  word: S-03 など                            this word stays here, reason above
+  heading: R-02 入出力例                     this section lacks it on purpose
+
 Doc roles are inferred from filenames: requirements*.md / spec*.md /
 design*.md. Files with other names still participate in generic checks.
 Stdlib only, Python 3.6+.
@@ -30,6 +46,18 @@ import sys
 
 ID_RE = re.compile(r"\b([RSDT]-\d+)\b")
 HEAD_DEF_RE = re.compile(r"^#{1,6}\s+([RSDT]-\d+)\b")
+HEADING_RE = re.compile(r"(#{1,6})\s")
+
+# The wording gate G1 greps for by hand; trace-gate.txt `words:` replaces it.
+AMBIGUOUS_WORDS = ("適切に", "必要に応じて", "など", "高速に", "柔軟に",
+                   "原則として")
+# What a kind's section must contain, matching the fields the shipped
+# templates use; trace-gate.txt `require:` lines override per feature.
+DEFAULT_REQUIRED = {
+    "S": ("受入条件", "境界条件・エラー時"),
+    "R": ("入出力例", "境界条件"),
+}
+GATE_FILE = "trace-gate.txt"
 
 
 def walk_tree(top, exts):
@@ -104,6 +132,113 @@ def scan(doc_files, code_files):
 
 def id_key(ident):
     return (ident[0], int(ident.split("-")[1]))
+
+
+def load_gate(path):
+    """Per-feature gate declarations: what to require, what to accept.
+
+    Returns (required, allow, words). [allow] holds (ident, text) pairs from
+    `word:` and `heading:` entries -- the reason lives in a comment above
+    each, like cq-baseline.txt, and writing the entry is the review."""
+    required = dict(DEFAULT_REQUIRED)
+    allow = set()
+    words = AMBIGUOUS_WORDS
+    if not os.path.exists(path):
+        return required, allow, words
+    with open(path, encoding="utf-8") as f:
+        for raw in f:
+            line = re.sub(r"(?:^|\s)#.*$", "", raw).strip()
+            if not line:
+                continue
+            if line.startswith("require:"):
+                kind, _, rest = line[len("require:"):].partition("=")
+                required[kind.strip()] = tuple(
+                    p.strip() for p in rest.split(",") if p.strip())
+            elif line.startswith("words:"):
+                words = tuple(w.strip() for w in
+                              line[len("words:"):].split(",") if w.strip())
+            elif line.startswith(("word:", "heading:")):
+                _, _, rest = line.partition(":")
+                ident, _, text = rest.strip().partition(" ")
+                allow.add((ident, text.strip()))
+    return required, allow, words
+
+
+def id_sections(lines):
+    """(ident, first_line, last_line) for every ID-defining heading. A
+    section runs until the next heading at the same or a shallower depth."""
+    heads = []
+    for lineno, line in enumerate(lines, 1):
+        m = HEADING_RE.match(line)
+        if m:
+            d = HEAD_DEF_RE.match(line)
+            heads.append((lineno, len(m.group(1)),
+                          d.group(1) if d else None))
+    sections = []
+    for i, (lineno, level, ident) in enumerate(heads):
+        if ident is None:
+            continue
+        end = len(lines)
+        for next_line, next_level, _ in heads[i + 1:]:
+            if next_level <= level:
+                end = next_line - 1
+                break
+        sections.append((ident, lineno, end))
+    return sections
+
+
+def phrase_re(phrase):
+    """A required subheading, in any of the notations real documents use:
+    '- 受入条件 (テスト可能な形で):', '**受入条件**', '#### 受入条件'."""
+    return re.compile(r"^\s*(?:[-*>]\s*|#{1,6}\s*)*\**\s*" + re.escape(phrase))
+
+
+def missing_headings(path, lines, sections, required, allow):
+    problems = []
+    for ident, start, end in sections:
+        for phrase in required.get(ident[0], ()):
+            if (ident, phrase) in allow:
+                continue
+            rx = phrase_re(phrase)
+            if not any(rx.match(l) for l in lines[start:end]):
+                problems.append("%s: section lacks 「%s」 (%s:%d)"
+                                % (ident, phrase, path, start))
+    return problems
+
+
+def ambiguous_words(path, lines, sections, words, allow):
+    """Ambiguous wording inside an ID's section. Only there: the 用語定義
+    section exists to define these words, so it always contains them."""
+    problems = []
+    for ident, start, end in sections:
+        for lineno in range(start, end + 1):
+            for word in words:
+                if word in lines[lineno - 1] and (ident, word) not in allow:
+                    problems.append("%s:%d: ambiguous 「%s」 (%s)"
+                                    % (path, lineno, word, ident))
+    return problems
+
+
+def check_gates(doc_files):
+    """The two gate checks that used to be manual, per feature directory."""
+    problems = []
+    configs = {}
+    for path in doc_files:
+        feature_dir = os.path.dirname(path) or "."
+        if feature_dir not in configs:
+            configs[feature_dir] = load_gate(
+                os.path.join(feature_dir, GATE_FILE))
+        required, allow, words = configs[feature_dir]
+        try:
+            with open(path, encoding="utf-8", errors="replace") as f:
+                lines = f.read().splitlines()
+        except OSError:
+            continue
+        sections = id_sections(lines)
+        problems += missing_headings(path, lines, sections, required, allow)
+        if doc_role(path) in ("requirements", "spec"):
+            problems += ambiguous_words(path, lines, sections, words, allow)
+    return problems
 
 
 def check(defs, refs, have_roles, have_code):
@@ -182,6 +317,7 @@ def main(argv):
     defs, refs = scan(doc_files, code_files)
     have_roles = {doc_role(f) for f in doc_files}
     problems = check(defs, refs, have_roles, bool(code_files))
+    problems += check_gates(doc_files)
 
     counts = {}
     for ident in defs:

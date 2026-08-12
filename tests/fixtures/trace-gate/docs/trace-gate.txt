@@ -1,0 +1,10 @@
+# Gate declarations for these fixtures. An entry passes only with the reason
+# written above it -- adding the line is the review, the same contract as
+# tools/cq-baseline.txt. Do not let this file grow into an ignore list: if a
+# reason cannot be written, the document wants fixing instead.
+
+# The --host reference is an enumeration example, defined right there.
+word: S-03 など
+
+# R-03 is a preference rule; there is no input/output pair to show.
+heading: R-03 入出力例

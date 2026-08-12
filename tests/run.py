@@ -70,6 +70,13 @@ CASES = [
     ('trace-matrix-matrix', TRACE, [
         '--matrix', '--code', 'tests/fixtures/trace/tests',
         'tests/fixtures/trace/docs']),
+    # The gate checks: exactly the section missing its subheading is named
+    # (an ad-hoc one-liner once reported all 10 when 3 were missing), a
+    # declared word/heading exception passes, and an undeclared ambiguous
+    # word is reported with its section.
+    ('trace-gate', TRACE, ['tests/fixtures/trace-gate/docs']),
+    # Fully compliant documents pass the gates with exit 0, no gate file.
+    ('trace-gate-clean', TRACE, ['tests/fixtures/trace-gate/clean']),
 ]
 
 

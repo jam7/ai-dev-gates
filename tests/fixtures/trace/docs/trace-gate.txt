@@ -1,0 +1,5 @@
+# These fixtures test ID coverage only; their sections carry none of the
+# template fields on purpose. Empty require: lists disable the subheading
+# gate here -- which is itself the declared-disable path under test.
+require: R =
+require: S =
