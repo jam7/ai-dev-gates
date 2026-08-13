@@ -154,6 +154,7 @@ python3 ~/.claude/skills/cq-review/cq-metrics.py src/
 | **rework** (第 7 章) | 影響範囲を特定して必要な所だけやり直す | 仕様漏れ・設計ミスが後から発覚したとき |
 | **prepare-compact** (第 8 章) | 会話を圧縮する前に、消えて困る情報をファイルへ退避させる | 長い作業でコンテキストが限界に近づいたとき |
 | **prepare-new-chat** (第 8 章) | 引き継ぎをファイルへ出し、新チャットの最初の発言を組み立てる | 圧縮でなく新しいチャットで仕切り直すとき |
+| **kill-proc** | 正規表現に一致したプロセスだけを、一覧を見てから殺す | AI がプロセスを止めたくなったとき常に (pkill -f や ps\|grep\|kill の巻き添え防止) |
 
 **初めて読む人へ**: 章は開発の流れ順に並んでいますが、**第 4 章 (cq-review) と
 第 5 章 (coding-rules) から読む**のが早いです。第 1 章の spec-dev は、要件から起こす
@@ -863,7 +864,8 @@ AI アシスタント自体の利用ポリシーは所属組織のルールに�
 ├── triage/         SKILL.md + parse-lit-log.py
 ├── rework/         SKILL.md
 ├── prepare-compact/ SKILL.md
-└── prepare-new-chat/ SKILL.md
+├── prepare-new-chat/ SKILL.md
+└── kill-proc/      SKILL.md + kill-proc.py
 ```
 
 コミットゲート (`--hooks` を付けたときだけ、リポジトリ直下に配置):
