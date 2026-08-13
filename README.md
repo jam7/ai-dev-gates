@@ -153,6 +153,7 @@ python3 ~/.claude/skills/cq-review/cq-metrics.py src/
 | **triage** (第 6 章) | テストログから失敗を抽出・分類・前回比較 | lit (LLVM 系) のテスト実行後 |
 | **rework** (第 7 章) | 影響範囲を特定して必要な所だけやり直す | 仕様漏れ・設計ミスが後から発覚したとき |
 | **prepare-compact** (第 8 章) | 会話を圧縮する前に、消えて困る情報をファイルへ退避させる | 長い作業でコンテキストが限界に近づいたとき |
+| **prepare-new-chat** (第 8 章) | 引き継ぎをファイルへ出し、新チャットの最初の発言を組み立てる | 圧縮でなく新しいチャットで仕切り直すとき |
 
 **初めて読む人へ**: 章は開発の流れ順に並んでいますが、**第 4 章 (cq-review) と
 第 5 章 (coding-rules) から読む**のが早いです。第 1 章の spec-dev は、要件から起こす
@@ -521,6 +522,13 @@ Claude: fix-loop で進めます。ガードセット: config 関連テスト全
 ディレクトリ規約、無ければ既存ファイルの置き方に合わせる)、下の例はこのリポジトリの
 規約の場合です。
 
+圧縮せず**新しいチャットで仕切り直す**場合は姉妹スキル **prepare-new-chat** を
+使います。ファイルへの書き出しは同じで、成果物が `/compact` の引数ではなく
+**新チャットに貼る最初の発言** (現在地 / 読む順序付きのファイル一覧 / 次の一手 /
+環境の事実) になります。途中で方針転換して作業を破棄した場合は特にこちら —
+要約は「削除した」と「公開した」のような矛盾した記憶を運びますが、
+新チャットは要約を持たないので、正しい結論だけが残るファイルを読み直せます。
+
 ### 使ってみるとこうなる
 
 ```text
@@ -825,7 +833,7 @@ checklist.md に追加しておくと、次からのレビューで最初から�
 日常の小さな修正はそのまま頼めば OK。出番の目安:
 実装後 → cq-review / AI に書かせるとき → coding-rules / 試行錯誤しそう → fix-loop /
 新機能を要件から → spec-dev / lit テスト後 → triage / 上流の誤り発覚 → rework /
-会話が長くなった → prepare-compact。
+会話が長くなった → prepare-compact (仕切り直すなら prepare-new-chat)。
 
 **Q. AI が勝手にファイルを消したり書き換えたりしない?**
 Skill 側に「破壊的操作・ベースライン更新・修正計画は人間の承認を取る」ルールを
@@ -854,7 +862,8 @@ AI アシスタント自体の利用ポリシーは所属組織のルールに�
 ├── self-review/    SKILL.md + references/compiler-checklist.md
 ├── triage/         SKILL.md + parse-lit-log.py
 ├── rework/         SKILL.md
-└── prepare-compact/ SKILL.md
+├── prepare-compact/ SKILL.md
+└── prepare-new-chat/ SKILL.md
 ```
 
 コミットゲート (`--hooks` を付けたときだけ、リポジトリ直下に配置):
