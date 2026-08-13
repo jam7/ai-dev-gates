@@ -26,6 +26,28 @@ notes/review-log.md                      # cq-review の指摘台帳
 使い分け: docs/ は「現在の正」(要件・仕様・設計) を置き、変更時は取り消し線と理由で
 履歴を残す。notes/ は「時系列の作業記録」で、上書きせず追記していく。
 TODO.md は「生きたやることリスト」で、完了したら消し込む (履歴は git と notes/ に残る)。
+
+### notes/ を独立した private repo にする場合
+
+公開 repo の中に notes/ を私的な別 repo として置く構成 (親の .gitignore で無視)
+も想定内。その場合の注意:
+
+- **TODO.md も notes/ 側に置く**。TODO → notes/reviews 等のリンクが private 内で
+  閉じ、公開読者に辿れないリンクが生まれない。公開側の文書に notes/ の内容が
+  必要なら、リンクせず**要約して書く** (rules/40-references.md の REF-2 と同じ理屈)
+- **notes/ にプログラムを置かない** (CLAUDE.md のディレクトリ規約にも明記)。
+  .gitignore は言語ツールに効かず、`go build ./...` や import 探索はツリーを
+  歩くので、コミットされないファイルが親のビルドや依存ファイルを汚す
+  (実測: notes/ の捨て .go が原因で親の go.mod に推移的依存 7 行が入った)。
+  捨てスクリプトは**調査メモの中にコードブロックとして記録**し、実行形が要る間は
+  セッションの scratchpad に置く。どうしても notes/ に実行形で残すなら、
+  ディレクトリ単位で除外される手段を使う (Go なら notes/ に入れ子の go.mod)
+- 親 repo での `git add -A` は notes/ への **gitlink を黙って stage** する
+  (実測: 1 日 3 回)。コミットゲート導入済みなら pre-commit が止める (意図的な
+  埋め込み repo は gate.conf の `embedded_repos=` に宣言)。剥がすのは
+  `git rm -f --cached notes`
+- notes/ から親のコミット件名への参照は**別 repo 参照**になる。notes/ は腐りを
+  許容する記録なので構わないが、その前提は意識しておく (REF-1 の対象外の続き)
 レビュー指摘のうち今直さないものは TODO.md へ 1 行 (要点 + 場所 + あれば S-ID +
 出典レビューへのリンク) で入れる。リンクは TODO → notes/ の片方向のみ
 (TODO は消し込むので、逆向きに張ると古くなる)。
