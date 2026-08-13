@@ -78,6 +78,11 @@ CASES = [
     ('trace-gate', TRACE, ['tests/fixtures/trace-gate/docs']),
     # Fully compliant documents pass the gates with exit 0, no gate file.
     ('trace-gate-clean', TRACE, ['tests/fixtures/trace-gate/clean']),
+    # The retirement ledger: a retired ID is a valid reference target and
+    # exempt from coverage, a live heading claiming one is reported, and a
+    # retired number that is defined again is reported (never reused).
+    # Reproduces the incident where a withdrawn R-05 made exit 1 permanent.
+    ('trace-retire', TRACE, ['--matrix', 'tests/fixtures/trace-retire/docs']),
     # Hash-shaped tokens in tracking documents are flagged alive or dead;
     # dates, decimal ids and hex-only English words stay quiet. --allow
     # /dev/null: this repository's own refs-allow.txt declares the planted

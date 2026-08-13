@@ -1,0 +1,18 @@
+== Definitions ==
+  R: 2, S: 2, D: 0, T: 0
+  retired: R-05, R-06
+
+== Matrix ==
+| ID | defined at | referenced from |
+|---|---|---|
+| R-01 | tests/fixtures/trace-retire/docs/requirements.md:3 | spec.md |
+| R-05 | (retired tests/fixtures/trace-retire/docs/requirements.md:14) | requirements.md, spec.md |
+| R-06 | tests/fixtures/trace-retire/docs/requirements.md:8 | requirements.md |
+| S-01 | tests/fixtures/trace-retire/docs/spec.md:3 | spec.md |
+| S-02 | tests/fixtures/trace-retire/docs/spec.md:13 | (none) |
+
+== Problems: 3 ==
+  R-06: not covered by any spec doc
+  R-06: in the retirement ledger (tests/fixtures/trace-retire/docs/requirements.md:15) but still defined (tests/fixtures/trace-retire/docs/requirements.md:8) - the number is never reused
+  S-02: its heading claims retired R-05 (tests/fixtures/trace-retire/docs/spec.md:13)
+--- exit 1 ---

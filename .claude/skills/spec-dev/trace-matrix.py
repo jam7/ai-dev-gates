@@ -9,6 +9,14 @@ references (any other occurrence), then reports coverage holes:
   - IDs referenced but never defined (typo detection)
   - IDs defined more than once
 
+Retirement: withdrawing or moving an ID out deletes its body (git holds the
+history) and leaves one line in a ledger section whose heading contains 退役:
+  ## 退役 (番号は再利用しない)
+  - R-05: 2026-08-13 撤回 -- ... (ADR-07)
+A retired ID is a valid reference target and is exempt from coverage, but a
+live heading that claims to realize one is reported, and so is a retired ID
+that is still (or again) defined -- the number is never reused.
+
 Two gate checks that used to be done by eye (an ad-hoc one-liner once
 reported all 10 sections as missing when 3 were):
   - every section of a kind carries its required subheadings
@@ -94,6 +102,7 @@ def doc_role(path):
 def scan(doc_files, code_files):
     defs = {}    # id -> [(file, line)]
     refs = {}    # id -> [(file, line, kind)]  kind: doc role / 'code' / 'test'
+    claims = []  # (defined id, other id on its heading line, file, line)
     for path in doc_files:
         role = doc_role(path)
         try:
@@ -105,12 +114,18 @@ def scan(doc_files, code_files):
         for lineno, line in enumerate(lines, 1):
             m = HEAD_DEF_RE.match(line)
             def_id = m.group(1) if m else None
-            for ident in ID_RE.findall(line):
+            idents = ID_RE.findall(line)
+            for ident in idents:
                 if ident == def_id:
                     defs.setdefault(ident, []).append((path, lineno))
                     def_id = None  # only the first occurrence is the definition
                 else:
                     refs.setdefault(ident, []).append((path, lineno, role))
+            if m:
+                # A heading like "S-02: ... (realizes R-05)" is a live
+                # structural claim, not a historical mention.
+                claims.extend((m.group(1), other, path, lineno)
+                              for other in idents if other != m.group(1))
     for path in code_files:
         kind = "test" if re.search(r"test", path, re.I) else "code"
         try:
@@ -127,7 +142,29 @@ def scan(doc_files, code_files):
                     defs.setdefault(ident, []).append((path, lineno))
                 else:
                     refs.setdefault(ident, []).append((path, lineno, kind))
-    return defs, refs
+    return defs, refs, claims
+
+
+def collect_retired(doc_files):
+    """IDs listed in a retirement-ledger section (a heading containing 退役).
+    The entry is one line; the deleted body lives in git, not the document."""
+    retired = {}
+    for path in doc_files:
+        try:
+            with open(path, encoding="utf-8", errors="replace") as f:
+                lines = f.read().splitlines()
+        except OSError:
+            continue
+        in_ledger = False
+        for lineno, line in enumerate(lines, 1):
+            if HEADING_RE.match(line):
+                in_ledger = "退役" in line
+                continue
+            if in_ledger:
+                m = re.match(r"^\s*[-*]\s*([RSDT]-\d+)\b", line)
+                if m:
+                    retired.setdefault(m.group(1), (path, lineno))
+    return retired
 
 
 def id_key(ident):
@@ -241,7 +278,7 @@ def check_gates(doc_files):
     return problems
 
 
-def check(defs, refs, have_roles, have_code):
+def check_coverage(defs, refs, have_roles, have_code):
     problems = []
 
     def referenced_in(ident, kinds):
@@ -263,8 +300,14 @@ def check(defs, refs, have_roles, have_code):
         if kind == "S" and have_code \
                 and not referenced_in(ident, {"test"}):
             problems.append("%s: no test references it" % ident)
+    return problems
+
+
+def check_references(refs, defs, retired):
+    """A mention must point at something: a definition, or a ledger entry."""
+    problems = []
     for ident in sorted(refs, key=id_key):
-        if ident not in defs:
+        if ident not in defs and ident not in retired:
             first = refs[ident][0]
             problems.append("%s: referenced (%s:%d) but never defined"
                             " - typo or missing section?"
@@ -272,11 +315,28 @@ def check(defs, refs, have_roles, have_code):
     return problems
 
 
-def print_matrix(defs, refs):
+def check_retired(defs, retired, claims):
+    """A retired number is never reused, and nothing live builds on it."""
+    problems = []
+    for ident in sorted(set(defs) & set(retired), key=id_key):
+        f, l = retired[ident]
+        problems.append("%s: in the retirement ledger (%s:%d) but still "
+                        "defined (%s:%d) - the number is never reused"
+                        % (ident, f, l, defs[ident][0][0], defs[ident][0][1]))
+    for def_id, other, path, lineno in claims:
+        if other in retired and def_id not in retired:
+            problems.append("%s: its heading claims retired %s (%s:%d)"
+                            % (def_id, other, path, lineno))
+    return problems
+
+
+def print_matrix(defs, refs, retired):
     print("| ID | defined at | referenced from |")
     print("|---|---|---|")
-    for ident in sorted(set(defs) | set(refs), key=id_key):
+    for ident in sorted(set(defs) | set(refs) | set(retired), key=id_key):
         d = ", ".join("%s:%d" % (f, l) for f, l in defs.get(ident, []))
+        if not d and ident in retired:
+            d = "(retired %s:%d)" % retired[ident]
         seen = []
         for f, l, _k in refs.get(ident, []):
             short = os.path.basename(f)
@@ -314,9 +374,12 @@ def main(argv):
                          % " ".join(doc_paths))
         sys.exit(2)
     code_files = collect(code_paths) if code_paths else []
-    defs, refs = scan(doc_files, code_files)
+    defs, refs, claims = scan(doc_files, code_files)
+    retired = collect_retired(doc_files)
     have_roles = {doc_role(f) for f in doc_files}
-    problems = check(defs, refs, have_roles, bool(code_files))
+    problems = check_coverage(defs, refs, have_roles, bool(code_files))
+    problems += check_references(refs, defs, retired)
+    problems += check_retired(defs, retired, claims)
     problems += check_gates(doc_files)
 
     counts = {}
@@ -325,9 +388,11 @@ def main(argv):
     print("== Definitions ==")
     print("  " + ", ".join("%s: %d" % (k, counts.get(k, 0))
                            for k in "RSDT"))
+    if retired:
+        print("  retired: " + ", ".join(sorted(retired, key=id_key)))
     if matrix:
         print("\n== Matrix ==")
-        print_matrix(defs, refs)
+        print_matrix(defs, refs, retired)
     print("\n== Problems: %d ==" % len(problems))
     for p in problems:
         print("  " + p)
