@@ -177,6 +177,13 @@ def id_key(ident):
     return (ident[0], int(ident.split("-")[1]))
 
 
+def next_id(kind, defs, retired):
+    """The next free number of a kind, counting retired numbers as spent."""
+    used = [id_key(i)[1] for i in list(defs) + list(retired)
+            if i.startswith(kind)]
+    return "%s-%02d" % (kind, max(used, default=0) + 1)
+
+
 def load_gate(path):
     """Per-feature gate declarations: what to require, what to accept.
 
@@ -399,6 +406,11 @@ def main(argv):
                            for k in "RSDT"))
     if retired:
         print("  retired: " + ", ".join(sorted(retired, key=id_key)))
+    # IDs are unique across the whole repository (a test comment or a commit
+    # message carries no feature context, so the number is the only key).
+    # This line saves the next feature from counting by hand -- retired
+    # numbers count as spent, since they are never reused.
+    print("  next: " + ", ".join(next_id(k, defs, retired) for k in "RSDT"))
     if matrix:
         print("\n== Matrix ==")
         print_matrix(defs, refs, retired)

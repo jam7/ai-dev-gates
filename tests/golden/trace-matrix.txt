@@ -1,5 +1,6 @@
 == Definitions ==
   R: 3, S: 3, D: 2, T: 1
+  next: R-04, S-05, D-03, T-02
 
 == Problems: 5 ==
   R-03: not covered by any spec doc

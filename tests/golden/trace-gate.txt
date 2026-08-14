@@ -1,5 +1,6 @@
 == Definitions ==
   R: 3, S: 4, D: 0, T: 0
+  next: R-04, S-05, D-01, T-01
 
 == Problems: 3 ==
   R-02: section lacks 「境界条件」 (tests/fixtures/trace-gate/docs/requirements.md:11)
