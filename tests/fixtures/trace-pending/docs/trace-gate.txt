@@ -1,0 +1,12 @@
+# fixture: pending declarations and staleness
+require: R =
+require: S =
+require: D =
+# フェーズ 1 待ち — spec はこれから書く
+pending: R-02
+# 陳腐化 1: 実際には spec に覆われている
+pending: R-01
+# 陳腐化 2: この ID は定義が存在しない
+pending: R-04
+# design は済み、テストがフェーズ 4 待ち
+pending: S-02

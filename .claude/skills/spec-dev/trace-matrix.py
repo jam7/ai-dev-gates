@@ -32,6 +32,14 @@ as tools/cq-baseline.txt: an exception passes only with a written reason.
   words: など, 適切に                         replace the ambiguous-word list
   word: S-03 など                            this word stays here, reason above
   heading: R-02 入出力例                     this section lacks it on purpose
+  pending: R-16                              in progress: its coverage holes
+                                             are accepted for now, reason above
+
+A pending ID keeps its other checks (typos, double definition, retirement)
+and is shown in the summary, so in-progress work is declared and visible,
+never silent. The declaration cannot rot: once the ID is fully covered (or
+gone), the entry itself is reported until removed -- the cq-baseline
+staleness contract.
 
 Doc roles are inferred from filenames: requirements*.md / spec*.md /
 design*.md. Files with other names still participate in generic checks.
@@ -187,14 +195,17 @@ def next_id(kind, defs, retired):
 def load_gate(path):
     """Per-feature gate declarations: what to require, what to accept.
 
-    Returns (required, allow, words). [allow] holds (ident, text) pairs from
-    `word:` and `heading:` entries -- the reason lives in a comment above
-    each, like cq-baseline.txt, and writing the entry is the review."""
+    Returns (required, allow, words, pending). [allow] holds (ident, text)
+    pairs from `word:` and `heading:` entries; [pending] holds IDs whose
+    coverage holes are accepted as work in progress. The reason lives in a
+    comment above each entry, like cq-baseline.txt: writing it is the
+    review."""
     required = dict(DEFAULT_REQUIRED)
     allow = set()
     words = AMBIGUOUS_WORDS
+    pending = set()
     if not os.path.exists(path):
-        return required, allow, words
+        return required, allow, words, pending
     with open(path, encoding="utf-8") as f:
         for raw in f:
             line = re.sub(r"(?:^|\s)#.*$", "", raw).strip()
@@ -207,11 +218,13 @@ def load_gate(path):
             elif line.startswith("words:"):
                 words = tuple(w.strip() for w in
                               line[len("words:"):].split(",") if w.strip())
+            elif line.startswith("pending:"):
+                pending.add(line[len("pending:"):].strip())
             elif line.startswith(("word:", "heading:")):
                 _, _, rest = line.partition(":")
                 ident, _, text = rest.strip().partition(" ")
                 allow.add((ident, text.strip()))
-    return required, allow, words
+    return required, allow, words, pending
 
 
 def id_sections(lines):
@@ -269,16 +282,22 @@ def ambiguous_words(path, lines, sections, words, allow):
     return problems
 
 
-def check_gates(doc_files):
-    """The two gate checks that used to be manual, per feature directory."""
-    problems = []
+def gate_configs(doc_files):
+    """One parsed trace-gate.txt per feature directory."""
     configs = {}
     for path in doc_files:
         feature_dir = os.path.dirname(path) or "."
         if feature_dir not in configs:
             configs[feature_dir] = load_gate(
                 os.path.join(feature_dir, GATE_FILE))
-        required, allow, words = configs[feature_dir]
+    return configs
+
+
+def check_gates(doc_files, configs):
+    """The two gate checks that used to be manual, per feature directory."""
+    problems = []
+    for path in doc_files:
+        required, allow, words, _ = configs[os.path.dirname(path) or "."]
         try:
             with open(path, encoding="utf-8", errors="replace") as f:
                 lines = f.read().splitlines()
@@ -291,11 +310,20 @@ def check_gates(doc_files):
     return problems
 
 
-def check_coverage(defs, refs, have_roles, have_code):
+def check_coverage(defs, refs, have_roles, have_code, pending):
+    """Coverage holes block -- unless the ID is declared pending, in which
+    case the hole is recorded in [hidden] instead: shown, not silent."""
     problems = []
+    hidden = {}
 
     def referenced_in(ident, kinds):
         return any(r[2] in kinds for r in refs.get(ident, []))
+
+    def hole(ident, aspect, message):
+        if ident in pending:
+            hidden.setdefault(ident, set()).add(aspect)
+        else:
+            problems.append(message)
 
     for ident in sorted(defs, key=id_key):
         locs = defs[ident]
@@ -306,14 +334,14 @@ def check_coverage(defs, refs, have_roles, have_code):
         kind = ident[0]
         if kind == "R" and "spec" in have_roles \
                 and not referenced_in(ident, {"spec"}):
-            problems.append("%s: not covered by any spec doc" % ident)
+            hole(ident, "spec", "%s: not covered by any spec doc" % ident)
         if kind == "S" and "design" in have_roles \
                 and not referenced_in(ident, {"design"}):
-            problems.append("%s: not covered by any design doc" % ident)
+            hole(ident, "design", "%s: not covered by any design doc" % ident)
         if kind == "S" and have_code \
                 and not referenced_in(ident, {"test"}):
-            problems.append("%s: no test references it" % ident)
-    return problems
+            hole(ident, "test", "%s: no test references it" % ident)
+    return problems, hidden
 
 
 def check_references(refs, defs, retired):
@@ -326,6 +354,30 @@ def check_references(refs, defs, retired):
                             " - typo or missing section?"
                             % (ident, first[0], first[1]))
     return problems
+
+
+def check_pending(defs, pending, hidden):
+    """A pending declaration must be earning its keep: once the ID is fully
+    covered (or gone) the entry itself is reported until removed -- the
+    cq-baseline staleness contract, so pending cannot rot into an ignore."""
+    problems = []
+    for ident in sorted(pending, key=id_key):
+        if ident not in defs:
+            problems.append("%s: declared pending but not defined" % ident)
+        elif ident not in hidden:
+            problems.append("%s: declared pending but fully covered - "
+                            "remove the declaration" % ident)
+    return problems
+
+
+def pending_line(pending, hidden):
+    """'pending: R-02 (spec), S-02 (test)' -- which holes each entry is
+    still hiding, so a gate review can see what remains at a glance."""
+    parts = []
+    for ident in sorted(pending, key=id_key):
+        aspects = ", ".join(sorted(hidden.get(ident, ())))
+        parts.append("%s (%s)" % (ident, aspects) if aspects else ident)
+    return "  pending: " + ", ".join(parts)
 
 
 def check_retired(defs, retired, claims):
@@ -389,14 +441,20 @@ def main(argv):
     code_files = collect(code_paths, missing_ok=True) if code_paths else []
     defs, refs, claims = scan(doc_files, code_files)
     retired = collect_retired(doc_files)
+    configs = gate_configs(doc_files)
+    pending = set()
+    for cfg in configs.values():
+        pending |= cfg[3]
     have_roles = {doc_role(f) for f in doc_files}
     # Coverage is demanded because --code was asked for, not because files
     # were found: a vanished test directory is a coverage hole, not a
     # reason to stop checking.
-    problems = check_coverage(defs, refs, have_roles, bool(code_paths))
+    problems, hidden = check_coverage(defs, refs, have_roles,
+                                      bool(code_paths), pending)
     problems += check_references(refs, defs, retired)
     problems += check_retired(defs, retired, claims)
-    problems += check_gates(doc_files)
+    problems += check_pending(defs, pending, hidden)
+    problems += check_gates(doc_files, configs)
 
     counts = {}
     for ident in defs:
@@ -406,6 +464,8 @@ def main(argv):
                            for k in "RSDT"))
     if retired:
         print("  retired: " + ", ".join(sorted(retired, key=id_key)))
+    if pending:
+        print(pending_line(pending, hidden))
     # IDs are unique across the whole repository (a test comment or a commit
     # message carries no feature context, so the number is the only key).
     # This line saves the next feature from counting by hand -- retired

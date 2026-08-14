@@ -101,6 +101,13 @@ CASES = [
     ('trace-missing-code', TRACE,
      ['--code', 'tests/fixtures/trace/no-such-dir',
       'tests/fixtures/trace-gate/clean']),
+    # pending: a declared work-in-progress ID hides only its coverage holes
+    # and shows them in the summary; an undeclared one still blocks; a
+    # declaration that stopped earning its keep (covered, or never defined)
+    # is itself reported until removed.
+    ('trace-pending', TRACE,
+     ['--code', 'tests/fixtures/trace-pending/tests',
+      'tests/fixtures/trace-pending/docs']),
 ]
 
 
