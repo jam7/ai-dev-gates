@@ -110,7 +110,7 @@ fi
 # destination differs from what would be written: identical means a re-run,
 # not a conflict. The old check flagged every tools/* file, including
 # gate.conf and cq-baseline.txt, which are never written over at all.
-gate_tools="check-metrics.py check-private.py check-refs.py \
+gate_tools="check-metrics.py check-private.py check-refs.py check-trace.py \
 cq-baseline.template.txt test-vocabulary.template.txt \
 private-allow.template.txt refs-allow.template.txt gate.conf.template"
 
@@ -233,7 +233,7 @@ if [ "$hooks" -eq 1 ]; then
       cp "tools/$n" "$root/tools/"
     done
     chmod +x "$root/tools/check-metrics.py" "$root/tools/check-private.py" \
-             "$root/tools/check-refs.py"
+             "$root/tools/check-refs.py" "$root/tools/check-trace.py"
   fi
   # The project's own files: created when missing and never replaced, not even
   # by --force. gate.conf holds what this project measures, cq-baseline.txt the

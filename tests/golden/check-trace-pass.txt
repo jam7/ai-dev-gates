@@ -1,0 +1,5 @@
+== Definitions ==
+  R: 1, S: 1, D: 0, T: 0
+
+== Problems: 0 ==
+--- exit 0 ---
