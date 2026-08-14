@@ -126,6 +126,14 @@ R/S/D/T の定義と参照を走査し、「spec にカバーされていない 
 コミットごとに**全 feature の matrix が自動走査され、壊したコミットがその場で
 止まる** (tools/check-trace.py。matrix が緑の状態で有効化すること)。
 
+このゲートが測るのは commit 内容ではなく**その瞬間の worktree** (check-metrics と
+同じ)。テストを unstage したまま文書だけ commit しても通ってしまうが、それは
+「単独で checkout すると赤い」履歴を作るのでやらない。**コミットの単位は
+「文書 + テスト側の ID 帳簿」** — S の受入条件と T は 1 つの宣言の両面なので
+一緒に動かす。テストはこの時点で落ちてよい (G4 の「実装前に落ちる」の証拠が
+履歴に残る)。メッセージに「tests fail by design; implementation follows」と
+明記し、実装は次のコミット。
+
 例外と上書きは `docs/<feature>/trace-gate.txt` に**理由付きで宣言**する
 (cq-baseline.txt と同じ契約 — 行を書くことが査読。理由を書けないなら文書側を直す):
 
