@@ -78,13 +78,19 @@ def walk_tree(top, exts):
     return found
 
 
-def collect(paths, exts=None):
+def collect(paths, exts=None, missing_ok=False):
+    """[missing_ok] is for --code paths: a directory can legitimately vanish
+    (its last test deleted, a subpackage moved out), and the meaningful
+    report is then the coverage holes, not a usage error."""
     files = []
     for p in paths:
         if os.path.isdir(p):
             files.extend(walk_tree(p, exts))
         elif os.path.isfile(p):
             files.append(p)
+        elif missing_ok:
+            sys.stderr.write("note: no such path, scanning nothing there: "
+                             "%s\n" % p)
         else:
             sys.stderr.write("error: no such path: %s\n" % p)
             sys.exit(2)
@@ -373,11 +379,14 @@ def main(argv):
         sys.stderr.write("error: no .md files found in: %s\n"
                          % " ".join(doc_paths))
         sys.exit(2)
-    code_files = collect(code_paths) if code_paths else []
+    code_files = collect(code_paths, missing_ok=True) if code_paths else []
     defs, refs, claims = scan(doc_files, code_files)
     retired = collect_retired(doc_files)
     have_roles = {doc_role(f) for f in doc_files}
-    problems = check_coverage(defs, refs, have_roles, bool(code_files))
+    # Coverage is demanded because --code was asked for, not because files
+    # were found: a vanished test directory is a coverage hole, not a
+    # reason to stop checking.
+    problems = check_coverage(defs, refs, have_roles, bool(code_paths))
     problems += check_references(refs, defs, retired)
     problems += check_retired(defs, retired, claims)
     problems += check_gates(doc_files)

@@ -1,0 +1,7 @@
+== Definitions ==
+  R: 1, S: 1, D: 0, T: 0
+
+== Problems: 1 ==
+  S-01: no test references it
+note: no such path, scanning nothing there: tests/fixtures/trace/no-such-dir
+--- exit 1 ---

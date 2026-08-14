@@ -91,6 +91,16 @@ CASES = [
     # A declared checksum passes: the declaration path.
     ('refs-allow', REFS, ['--allow', 'tests/fixtures/refs/allow/refs-allow.txt',
                           'tests/fixtures/refs/allow/docs']),
+    # The wrapper finds trace-matrix.py in this repository and passes its
+    # arguments through verbatim; without --gate it always runs and prints.
+    ('check-trace-pass', 'tools/check-trace.py',
+     ['tests/fixtures/trace-gate/clean']),
+    # A --code directory that vanished (last test deleted, subpackage moved
+    # out) reports the coverage holes, not a usage error -- and does not
+    # silently drop the coverage checks either.
+    ('trace-missing-code', TRACE,
+     ['--code', 'tests/fixtures/trace/no-such-dir',
+      'tests/fixtures/trace-gate/clean']),
 ]
 
 
