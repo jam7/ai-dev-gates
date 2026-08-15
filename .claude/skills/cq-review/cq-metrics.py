@@ -525,6 +525,7 @@ def analyze_braces(lines):
     """Functions in a brace-delimited file."""
     functions = []
     depth = 0
+    parens = 0  # unclosed ( so far; braces inside are data, not blocks
     header_buf = ""
     header_line = None
     func = None  # dict while inside a function
@@ -534,19 +535,27 @@ def analyze_braces(lines):
         if not stripped or stripped.startswith("#"):
             # Blank line or preprocessor directive: a function header never
             # spans these, and #include/#define braces would corrupt depth.
-            header_buf, header_line = "", None
+            # Resetting parens lets a truncated (...) group recover here.
+            header_buf, header_line, parens = "", None, 0
             continue
         for c in line:
-            if c == "{":
+            # Inside an open (...) group, `{}` is parameter syntax (Dart
+            # named params, C++ brace-init defaults) and `;` a for-clause:
+            # all belong to the header, or a wrapped signature is lost.
+            if parens == 0 and c == "{":
                 func, depth = open_brace(func, depth,
                                          (header_buf, header_line), lineno)
                 header_buf, header_line = "", None
-            elif c == "}":
+            elif parens == 0 and c == "}":
                 func, depth = close_brace(func, depth, functions, lineno)
                 header_buf, header_line = "", None
-            elif c == ";":
+            elif parens == 0 and c == ";":
                 header_buf, header_line = "", None
             else:
+                if c == "(":
+                    parens += 1
+                elif c == ")":
+                    parens = max(0, parens - 1)
                 if not header_buf.strip() and not c.isspace():
                     header_line = lineno
                 header_buf += c

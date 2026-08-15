@@ -1,18 +1,21 @@
-== Long functions (> 0 code lines): 26 ==
+== Long functions (> 0 code lines): 29 ==
   tests/fixtures/braces/decls.cs:12  Read()  14 code lines
   tests/fixtures/braces/receiver.go:19  Load()  14 code lines
   tests/fixtures/braces/shapes.c:8  guarded()  14 code lines
   tests/fixtures/braces/twin.go:18  Save()  14 code lines
   tests/fixtures/python/shapes.py:41  Holder.chain()  10 code lines
   tests/fixtures/python/shapes.py:54  wrapped()  10 code lines
+  tests/fixtures/braces/wrapped.dart:15  caller()  9 code lines
   tests/fixtures/python/shapes.py:31  Holder.deep()  8 code lines
   tests/fixtures/python/tabs.py:1  tabbed()  8 code lines
   tests/fixtures/braces/shapes.c:30  quoting()  6 code lines
   tests/fixtures/braces/decls_twin.cs:12  Write()  5 code lines
   tests/fixtures/braces/literals.js:6  describe()  5 code lines
   tests/fixtures/braces/literals.js:12  quoting()  5 code lines
+  tests/fixtures/braces/wrapped.dart:7  doWork()  5 code lines
   tests/fixtures/python/shapes.py:66  continued()  5 code lines
   tests/fixtures/python/shapes.py:74  outer()  5 code lines
+  tests/fixtures/braces/defaults.cpp:6  pickSize()  4 code lines
   tests/fixtures/braces/literals.rs:17  tabulate()  3 code lines
   tests/fixtures/braces/receiver.go:35  Raw()  3 code lines
   tests/fixtures/braces/shapes.c:25  many()  3 code lines
@@ -26,16 +29,18 @@
   tests/fixtures/coupling/src/net/session.c:2  session_open()  1 code lines
   tests/fixtures/coupling/src/core/engine.c:2  engine_run()  1 code lines
 
-== Deep nesting (> -1 levels): 26 ==
+== Deep nesting (> -1 levels): 29 ==
   tests/fixtures/python/shapes.py:31  Holder.deep()  depth 5
   tests/fixtures/braces/shapes.c:8  guarded()  depth 4
   tests/fixtures/python/tabs.py:1  tabbed()  depth 4
   tests/fixtures/braces/decls.cs:12  Read()  depth 1
   tests/fixtures/braces/receiver.go:19  Load()  depth 1
   tests/fixtures/braces/twin.go:18  Save()  depth 1
+  tests/fixtures/braces/wrapped.dart:15  caller()  depth 1
   tests/fixtures/python/shapes.py:41  Holder.chain()  depth 1
   tests/fixtures/python/shapes.py:74  outer()  depth 1
   tests/fixtures/braces/decls_twin.cs:12  Write()  depth 0
+  tests/fixtures/braces/defaults.cpp:6  pickSize()  depth 0
   tests/fixtures/braces/literals.js:6  describe()  depth 0
   tests/fixtures/braces/literals.js:12  quoting()  depth 0
   tests/fixtures/braces/literals.rs:17  tabulate()  depth 0
@@ -43,6 +48,7 @@
   tests/fixtures/braces/shapes.c:25  many()  depth 0
   tests/fixtures/braces/shapes.c:30  quoting()  depth 0
   tests/fixtures/braces/shapes.c:42  shallow()  depth 0
+  tests/fixtures/braces/wrapped.dart:7  doWork()  depth 0
   tests/fixtures/coupling/src/util/log.c:3  log_line()  depth 0
   tests/fixtures/coupling/src/net/session.c:2  session_open()  depth 0
   tests/fixtures/coupling/src/core/engine.c:2  engine_run()  depth 0
@@ -54,12 +60,14 @@
   tests/fixtures/python/shapes.py:66  continued()  depth 0
   tests/fixtures/python/shapes.py:77  outer.inner()  depth 0
 
-== Long parameter lists (> -1 params): 26 ==
+== Long parameter lists (> -1 params): 29 ==
   tests/fixtures/braces/shapes.c:25  many()  6 params
   tests/fixtures/python/shapes.py:54  wrapped()  3 params
+  tests/fixtures/braces/defaults.cpp:6  pickSize()  2 params
   tests/fixtures/braces/literals.js:6  describe()  2 params
   tests/fixtures/braces/receiver.go:19  Load()  2 params
   tests/fixtures/braces/twin.go:18  Save()  2 params
+  tests/fixtures/braces/wrapped.dart:7  doWork()  2 params
   tests/fixtures/python/shapes.py:19  flat()  2 params
   tests/fixtures/python/shapes.py:27  Holder.__init__()  2 params
   tests/fixtures/braces/decls.cs:12  Read()  1 params
@@ -79,9 +87,10 @@
   tests/fixtures/braces/receiver.go:35  Raw()  0 params
   tests/fixtures/braces/shapes.c:30  quoting()  0 params
   tests/fixtures/braces/shapes.c:42  shallow()  0 params
+  tests/fixtures/braces/wrapped.dart:15  caller()  0 params
   tests/fixtures/coupling/src/net/session.c:2  session_open()  0 params
   tests/fixtures/coupling/src/core/engine.c:2  engine_run()  0 params
 
 == Summary ==
-  files: 17, functions: 26, flagged: long=26 deep=26 params=26 dup-groups=0
+  files: 19, functions: 29, flagged: long=29 deep=29 params=29 dup-groups=0
 --- exit 0 ---
