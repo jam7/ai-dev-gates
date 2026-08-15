@@ -1,0 +1,14 @@
+Private data check failed:
+
+  tests/fixtures/private/multi.txt:3: long numeric id: 77770000000000000007
+  tests/fixtures/private/multi.txt:3: long numeric id: 88880000000000000008
+  tests/fixtures/private/multi.txt:4: long numeric id: 66660000000000000006
+
+3 problem(s).
+
+A deliberate exception (an example value, a protocol constant) is
+declared in tests/fixtures/private/private-allow.txt with its reason.
+If this is real data, replace it with names from tests/fixtures/private/vocabulary.txt.
+If it is invented and the check is simply unaware of it, add it to that file
+-- that is the point: new test data is declared, not assumed.
+--- exit 1 ---

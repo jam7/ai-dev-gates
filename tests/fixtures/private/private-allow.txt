@@ -1,0 +1,4 @@
+# Fixture allow file: a declared exception ahead of an undeclared id must
+# not silence it either. The allow file itself is exempt from scanning, so
+# holding the token here is safe by design.
+55550000000000000005

@@ -1,0 +1,5 @@
+# Fixture vocabulary for the multi-hit case: the declared dummy id that
+# used to hide every undeclared id behind it on the same line. This file
+# is inside the golden scan scope on purpose -- a vocabulary stays scanned,
+# and a declared token must stay quiet in its own declaration.
+10000000000000000001

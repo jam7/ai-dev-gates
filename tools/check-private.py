@@ -303,10 +303,18 @@ def check_line(where, lineno, line, policy, historical):
     private name is never acceptable, only tolerated in history by removal."""
     problems = []
     for rx, why in STRUCTURAL:
-        m = rx.search(line)
-        if m and not policy.known(m.group(0)) \
-                and not policy.allowed(m.group(0), historical):
-            problems.append((where, lineno, why, m.group(0)))
+        # Every match on the line, not just the first: a minified JSON line
+        # carries many values, and stopping at one declared dummy id used to
+        # hide every undeclared id behind it. Identical values are reported
+        # once per line -- six copies of one leaked id are one problem.
+        seen = set()
+        for m in rx.finditer(line):
+            hit = m.group(0)
+            if hit in seen or policy.known(hit) \
+                    or policy.allowed(hit, historical):
+                continue
+            seen.add(hit)
+            problems.append((where, lineno, why, hit))
     for key, value in KEY_ASSIGN.findall(line):
         expected = policy.keyed.get(key)
         if expected is not None and value not in expected \

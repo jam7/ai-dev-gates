@@ -91,6 +91,18 @@ CASES = [
     # A declared checksum passes: the declaration path.
     ('refs-allow', REFS, ['--allow', 'tests/fixtures/refs/allow/refs-allow.txt',
                           'tests/fixtures/refs/allow/docs']),
+    # One line, many hits: a declared dummy id (vocabulary) or a declared
+    # exception (allow) ahead of undeclared ids must not hide them, and two
+    # copies of one leaked id are one problem, not two. Reproduces the
+    # incident where one declared id at the head of a minified 8 KB line
+    # turned the whole line green. The fixtures are .txt so the repository's
+    # own gate (default scopes) never scans them; the case names them
+    # explicitly. --worktree reads git ls-files, so they must be tracked.
+    ('private-multi', 'tools/check-private.py',
+     ['--worktree', '--scan-scope', r'^tests/fixtures/private/.*\.txt$',
+      '--vocabulary', 'tests/fixtures/private/vocabulary.txt',
+      '--allow', 'tests/fixtures/private/private-allow.txt',
+      '--denylist', '/dev/null']),
     # The wrapper finds trace-matrix.py in this repository and passes its
     # arguments through verbatim; without --gate it always runs and prints.
     ('check-trace-pass', 'tools/check-trace.py',

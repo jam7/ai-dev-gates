@@ -1,0 +1,5 @@
+A minified one-line blob, like the 8 KB HTML line this reproduces. All ids
+are invented (77.., 88.., not anyone's real values).
+{"dummy":10000000000000000001,"leak":77770000000000000007,"again":77770000000000000007,"other":88880000000000000008}
+{"allowed":55550000000000000005,"leak":66660000000000000006}
+{"dummy":10000000000000000001}
