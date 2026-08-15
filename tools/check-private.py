@@ -25,10 +25,15 @@ Two kinds of check:
   every invented path would fail, so a project that has not written one yet
   gets the structural checks and nothing else.
 
-An optional exact denylist is read from notes/private-patterns.txt when that
+An optional denylist is read from notes/private-patterns.txt when that
 file exists. It lists real names, so it belongs in a private notes repository
 and never in the checked one -- a list of things that must not leak is itself
-the worst thing to leak.
+the worst thing to leak. Terms match with character-class boundaries rather
+than as bare substrings: an ASCII term never touches other alphanumerics (an
+id inside a longer number is a different value), and a CJK term of one or two
+characters matches only next to a delimiter -- CJK prose has no word breaks,
+and a bare-substring rule made short names unlistable, which left them
+unprotected. Longer CJK terms are distinctive enough to match anywhere.
 
 Deliberate exceptions are declared in tools/private-allow.txt (see --allow),
 with the reason above each entry, the same shape as cq-baseline.txt. A plain
@@ -80,7 +85,8 @@ DEFAULT_SCAN_SCOPE = DEFAULT_DATA_SCOPE + (
     r'(^|/)(lib|src)/.*' + SOURCE_EXT,
 )
 
-CJK = re.compile(r'[぀-ヿ㐀-䶿一-鿿]')
+CJK_RANGE = r'぀-ヿ㐀-䶿一-鿿'
+CJK = re.compile('[%s]' % CJK_RANGE)
 # `$e\n$st` in a logging example is one string, not a two-segment path. A real
 # path carries a dot, a slash or a drive colon; an escape sequence does not.
 ESCAPE_NOT_PATH = re.compile(r'^[^/:.]*\\[nrt0v][^/:.]*$')
@@ -229,11 +235,35 @@ def load_vocabulary(path):
     return tokens, patterns
 
 
+def denylist_matcher(term):
+    """How a denylist term may match, by character class.
+
+    A bare substring fails in both directions. An alphanumeric id inside a
+    longer token is a different value, so an ASCII term must not touch
+    neighbouring alphanumerics. CJK prose has no word breaks, so a
+    two-character name would stop every sentence containing it -- which kept
+    such names off the list entirely, unprotected; a short CJK term instead
+    matches only next to a delimiter (anything that is not a CJK letter),
+    and a longer CJK title is distinctive enough to match anywhere.
+    """
+    esc = re.escape(term)
+    if term.isascii():
+        left = r'(?<![0-9A-Za-z])' if term[:1].isalnum() else ''
+        right = r'(?![0-9A-Za-z])' if term[-1:].isalnum() else ''
+        return re.compile(left + esc + right, re.I)
+    if len(term) > 2:
+        return re.compile(esc, re.I)
+    return re.compile('(?<![%s])%s|%s(?![%s])'
+                      % (CJK_RANGE, esc, esc, CJK_RANGE), re.I)
+
+
 def load_denylist(path):
+    """Denylist terms as (term, matcher) pairs."""
     if not os.path.exists(path):
         return []
     with open(path, encoding='utf-8') as f:
-        return [t for t in (strip_comment(l) for l in f) if t]
+        return [(t, denylist_matcher(t))
+                for t in (strip_comment(l) for l in f) if t]
 
 
 def load_allow(path):
@@ -322,8 +352,8 @@ def check_line(where, lineno, line, policy, historical):
             problems.append((where, lineno,
                              '%s is not one of the example values' % key,
                              value))
-    for term in policy.denylist:
-        if term.lower() in line.lower():
+    for term, rx in policy.denylist:
+        if rx.search(line):
             problems.append((where, lineno, 'known private name', term))
     return problems
 

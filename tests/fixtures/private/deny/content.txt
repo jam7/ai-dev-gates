@@ -1,0 +1,8 @@
+An ASCII id alone matches: 246800 is the declared term itself.
+Inside longer tokens it is a different value: 12468003 2468001 x246800x stay quiet.
+Non-alphanumeric neighbours do not shield it: TAG-246800-END matches.
+A short CJK term next to a delimiter matches: 「架空」 and 架空.pdf both do.
+Flanked by CJK letters it stays quiet: 実在の架空という語は素通り。
+A long CJK title matches anywhere: この続架空の蔵書目録抄も一致する。
+This file carries no 12+ digit numbers, so the multi.txt case that also
+scans it finds nothing here.

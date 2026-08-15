@@ -103,6 +103,17 @@ CASES = [
       '--vocabulary', 'tests/fixtures/private/vocabulary.txt',
       '--allow', 'tests/fixtures/private/private-allow.txt',
       '--denylist', '/dev/null']),
+    # Denylist boundary rules, one per character class: an ASCII term does
+    # not match inside a longer alphanumeric token, a one-or-two-character
+    # CJK term matches only next to a delimiter (a bare substring made such
+    # names unlistable, so they went unprotected), and a longer CJK title
+    # matches anywhere. The denylist fixture is .list so no scope ever scans
+    # it and it cannot scream about its own terms.
+    ('private-denylist', 'tools/check-private.py',
+     ['--worktree', '--scan-scope', r'^tests/fixtures/private/deny/.*\.txt$',
+      '--vocabulary', 'tests/fixtures/private/vocabulary.txt',
+      '--allow', 'tests/fixtures/private/private-allow.txt',
+      '--denylist', 'tests/fixtures/private/deny/denylist.list']),
     # The wrapper finds trace-matrix.py in this repository and passes its
     # arguments through verbatim; without --gate it always runs and prints.
     ('check-trace-pass', 'tools/check-trace.py',

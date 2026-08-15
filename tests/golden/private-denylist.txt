@@ -1,0 +1,15 @@
+Private data check failed:
+
+  tests/fixtures/private/deny/content.txt:1: known private name: 246800
+  tests/fixtures/private/deny/content.txt:3: known private name: 246800
+  tests/fixtures/private/deny/content.txt:4: known private name: 架空
+  tests/fixtures/private/deny/content.txt:6: known private name: 架空の蔵書目録
+
+4 problem(s).
+
+A deliberate exception (an example value, a protocol constant) is
+declared in tests/fixtures/private/private-allow.txt with its reason.
+If this is real data, replace it with names from tests/fixtures/private/vocabulary.txt.
+If it is invented and the check is simply unaware of it, add it to that file
+-- that is the point: new test data is declared, not assumed.
+--- exit 1 ---

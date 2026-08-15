@@ -1,0 +1,8 @@
+# Fixture denylist: every term is invented (a number, a word that means
+# "fictional", and a made-up title), never anyone's real name. The .list
+# extension keeps this file out of every scan scope -- a denylist that is
+# scanned screams about itself, which is deliberate in production but would
+# drown this case's point.
+246800
+架空
+架空の蔵書目録
