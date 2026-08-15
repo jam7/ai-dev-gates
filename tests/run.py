@@ -101,6 +101,16 @@ CASES = [
     ('trace-missing-code', TRACE,
      ['--code', 'tests/fixtures/trace/no-such-dir',
       'tests/fixtures/trace-gate/clean']),
+    # Stale baseline entries are split by cause: a declared function that
+    # measures under the threshold is "remove the line", one the analyzer
+    # cannot find at all is "verify before removing" (a parser gap once
+    # turned a live 73-line declaration into removal advice). A missing
+    # file and a dup pair count as resolved, and the current findings
+    # (params many, one dup) are left undeclared so the failing exit is
+    # fixed too.
+    ('check-metrics-stale', 'tools/check-metrics.py',
+     ['--scope', 'tests/fixtures/braces',
+      '--baseline', 'tests/fixtures/check-metrics/cq-baseline.txt']),
     # pending: a declared work-in-progress ID hides only its coverage holes
     # and shows them in the summary; an undeclared one still blocks; a
     # declaration that stopped earning its keep (covered, or never defined)

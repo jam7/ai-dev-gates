@@ -1,0 +1,7 @@
+# Fixture baseline for the stale-entry split. Against tests/fixtures/braces
+# at default thresholds, exactly one finding is current (params many), and it
+# is left undeclared on purpose so the case also fixes the failing exit.
+long tests/fixtures/braces/shapes.c::guarded    # under threshold now, function still seen: resolved
+long tests/fixtures/braces/shapes.c::vanished   # no such function in a live file: unseen, not an improvement
+deep tests/fixtures/braces/no_such.c::gone      # the file is gone, and the code with it: resolved
+dup tests/fixtures/braces/a.c|tests/fixtures/braces/b.c   # dup keys name file pairs, not functions: resolved
