@@ -113,8 +113,8 @@ fi
 gate_tools="check-metrics.py check-private.py check-refs.py check-trace.py \
 check-text.py cq-baseline.template.txt test-vocabulary.template.txt \
 private-allow.template.txt refs-allow.template.txt gate.conf.template \
-textlint/textlintrc.template.yml textlint/allow.template.yml \
-textlint/dict.template.js"
+textlint/textlintrc.template.yml textlint/textlintrc.en.template.yml \
+textlint/allow.template.yml textlint/dict.template.js"
 
 conflicts=""
 add_conflict() {
