@@ -210,12 +210,26 @@ def compile_all(patterns):
 
 
 def repo_root():
-    """The repository being checked, or the directory holding this script."""
+    """The repository being checked, or exit 2 when there is no work tree.
+
+    This used to fall back to the directory holding the script, which in a
+    bare repository or a bundle silently checked a DIFFERENT repository --
+    the one the script was copied into -- and reported its result as if it
+    were this one's. Measured: run inside a bare clone of a repository whose
+    only finding was A, it reported finding B from the checkout next to the
+    script, and exited 0 where the answer should have been "not checked".
+    A safety net that answers about the wrong repository is worse than one
+    that refuses, so it refuses."""
     done = subprocess.run(['git', 'rev-parse', '--show-toplevel'],
                           capture_output=True, text=True)
     if done.returncode == 0 and done.stdout.strip():
         return done.stdout.strip()
-    return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    sys.stderr.write(
+        'no work tree here, so there is no repository to check.\n'
+        'A bare repository or a bundle has to be checked from a clone with a\n'
+        'work tree: git clone <it> tmp && cd tmp && '
+        '<this script> --all-history\n')
+    sys.exit(2)
 
 
 def strip_comment(line):

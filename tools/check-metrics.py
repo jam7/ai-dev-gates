@@ -58,12 +58,22 @@ DUP_SITES = re.compile(r'sites:\s*(.+)$')
 
 
 def repo_root():
-    """The repository being checked, or the directory holding this script."""
+    """The repository being checked, or exit 2 when there is no work tree.
+
+    This used to fall back to the directory holding the script, which in a
+    bare repository measured a DIFFERENT repository -- the one the script was
+    copied into -- and reported the answer as if it were this one's. The same
+    fallback was in check-private.py, where it made a safety net report green
+    about a repository it had never opened; both were removed together."""
     done = subprocess.run(['git', 'rev-parse', '--show-toplevel'],
                           capture_output=True, text=True)
     if done.returncode == 0 and done.stdout.strip():
         return done.stdout.strip()
-    return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    sys.stderr.write(
+        'no work tree here, so there is no repository to check.\n'
+        'A bare repository or a bundle has to be checked from a clone with a\n'
+        'work tree: git clone <it> tmp && cd tmp && <this script>\n')
+    sys.exit(2)
 
 
 def metrics_script(root):
