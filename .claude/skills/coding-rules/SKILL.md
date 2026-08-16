@@ -11,9 +11,9 @@ cq-review が「書いた後のレビュー」なのに対し、これは「書�
 
 ## ルールの読み込み
 
-コーディング開始前に `$SKILL/rules/` の `*.md` を**ファイル名順にすべて読む**
-($SKILL はこの Skill のディレクトリ。ホーム導入なら `~/.claude/skills/coding-rules`、
-プロジェクト導入なら `<repo>/.claude/skills/coding-rules`)。
+コーディング開始前に `$SKILL/rules/` の `*.md` を**ファイル名順にすべて読む**。
+$SKILL はこの Skill のディレクトリで、ホーム導入なら `~/.claude/skills/coding-rules`、
+プロジェクト導入なら `<repo>/.claude/skills/coding-rules`。
 
 - 読むのは `*.md` のみ。`*.template.md` は読まない (デフォルトの参照原本。
   対応する .md をチームが削除している場合、そのルールは「無効化された」とみなす)

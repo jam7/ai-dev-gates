@@ -24,6 +24,19 @@ rules:
     # without arguing about every line that carries a path.
     sentence-length:
       max: 120
+      # skipPatterns SUBTRACTS the matched spans from the count (measured:
+      # a marker-only pattern shaved exactly its own length). Both patterns
+      # remove data, so what the limit measures is the prose:
+      #   悪い例/良い例 lines quote literal code and commit subjects -- the
+      #   block shape is rules/90-rule-format.md's, and their prose part
+      #   measured 10-16 characters. Matching to end-of-line drops the
+      #   payload.
+      #   Script-name enumerations (a.py, b.py, ...) are inventory, and any
+      #   sentence honest enough to list seven of them would bust the limit
+      #   on data alone.
+      skipPatterns:
+        - "/(悪い例|良い例):.*/"
+        - "/[\\w.-]+\\.py/g"
     # Off by default: lists and tables legitimately end without a period.
     ja-no-mixed-period: false
     # は, も and でも legitimately repeat within one sentence in this

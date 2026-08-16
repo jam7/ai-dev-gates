@@ -603,7 +603,7 @@ long src/big.go::Big
 ### もう 1 つのゲート: 私的データの流出防止
 
 `tools/check-private.py` は、ホーム配下の絶対パス・プライベート IP・長い数値 ID を
-全ファイルで弾きます。さらに**語彙リスト方式**の検査があります: テストデータや
+全ファイルで弾きます。さらに**語彙リスト方式**の検査があります。テストデータや
 ドキュメントの例に出てくる「内容らしきもの」(区切りを含むパス、メディアファイル名、
 CJK 文字列) は、`tools/test-vocabulary.txt` に宣言された名前だけで組み立てる、という
 ルールです。
@@ -752,8 +752,8 @@ text_scope="\.md$"                   # textlint の対象 (空 = 無効。環境
 fixture** はいずれも指摘を埋もれさせます。
 
 `extra_checks` はコミット前に走らせる任意のコマンドで、`ext` に一致するファイルが
-含まれるコミットのときだけ実行され、非ゼロ終了でコミットを止めます
-(このリポジトリ自身は `python3 tests/run.py` を指定しています。計測器である
+含まれるコミットのときだけ実行され、非ゼロ終了でコミットを止めます。
+このリポジトリ自身は `python3 tests/run.py` を指定しています (計測器である
 cq-metrics.py が壊れると「何も測らずに通る」ゲートになるため)。
 
 ### いつ入れるか — 「入れない」判断が重要です
@@ -883,9 +883,10 @@ checklist.md に追加しておくと、次からのレビューで最初から�
 いいえ。実際に毎日動くのは **cq-review と coding-rules の 2 つ**で、fix-loop が
 ときどき、残りは該当する状況に遭遇したときだけです (作者の実績もそうなっています)。
 日常の小さな修正はそのまま頼めば OK。出番の目安:
-実装後 → cq-review / AI に書かせるとき → coding-rules / 試行錯誤しそう → fix-loop /
-新機能を要件から → spec-dev / lit テスト後 → triage / 上流の誤り発覚 → rework /
-会話が長くなった → prepare-compact (仕切り直すなら prepare-new-chat)。
+
+- 実装後 → cq-review / AI に書かせるとき → coding-rules / 試行錯誤しそう → fix-loop
+- 新機能を要件から → spec-dev / lit テスト後 → triage / 上流の誤り発覚 → rework
+- 会話が長くなった → prepare-compact (仕切り直すなら prepare-new-chat)
 
 **Q. AI が勝手にファイルを消したり書き換えたりしない?**
 Skill 側に「破壊的操作・ベースライン更新・修正計画は人間の承認を取る」ルールを
@@ -896,9 +897,9 @@ Skill 側に「破壊的操作・ベースライン更新・修正計画は人�
 そこだけあなたの判断で裁定してください。むしろ低確度を断定してこないことが重要です。
 
 **Q. 秘密情報は大丈夫?**
-同梱スクリプト 7 つ (cq-metrics.py, git-cochange.py, cpp-coupling.py,
-trace-matrix.py, parse-lit-log.py, check-metrics.py, check-private.py) は
-完全ローカル・読み取り専用で外部送信なし。むしろ check-private.py は
+同梱スクリプトは 7 つあります (cq-metrics.py, git-cochange.py, cpp-coupling.py,
+trace-matrix.py, parse-lit-log.py, check-metrics.py, check-private.py)。
+すべて完全ローカル・読み取り専用で外部送信なし。むしろ check-private.py は
 「私的データをリポジトリに入れない」ためのゲートです (第 9 章)。
 AI アシスタント自体の利用ポリシーは所属組織のルールに従ってください。
 
