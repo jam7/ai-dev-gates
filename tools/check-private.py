@@ -153,6 +153,7 @@ class Policy:
 
     def __init__(self, root, args):
         self.root = root
+        self.scanned = 0  # files and messages actually read this run
         vocab = abspath(root, args.vocabulary)
         self.vocabulary_known = os.path.exists(vocab)
         self.tokens, self.patterns = load_vocabulary(vocab)
@@ -364,6 +365,7 @@ def check_line(where, lineno, line, policy, historical):
 
 
 def check_content(path, content, policy, historical=False):
+    policy.scanned += 1
     problems = []
     for lineno, line in enumerate(content.split('\n'), 1):
         problems += check_line(path, lineno, line, policy, historical)
@@ -408,6 +410,7 @@ def check_worktree(policy):
 def check_message(rev, policy):
     """A commit message carries data too, and is not caught by any file scan.
     Messages only exist in revisions, so the historical allowances apply."""
+    policy.scanned += 1
     problems = []
     message = git(policy.root, 'log', '-1', '--format=%B', rev)
     for lineno, line in enumerate(message.split('\n'), 1):
@@ -523,6 +526,20 @@ def main():
         spec = ['--all'] if args.all_history else [args.range]
         revs = [r for r in git(policy.root, 'rev-list', *spec).split('\n') if r]
         problems = check_revisions(revs, policy)
+
+    # An absent DEFAULT denylist runs the scan without the known-names
+    # check, and that green must not read like a checked green -- the same
+    # contract check-text.py states for a missing textlint. Said once per
+    # run, on stderr, only when something was actually scanned (a run that
+    # read nothing has nothing to be quiet about), and without touching
+    # the exit code: a checkout without the private notes repository still
+    # has to be able to commit. Unlike vocabulary (deleting that file is
+    # its documented off-switch) and allow (no declared exceptions is
+    # normal), an absent denylist means nothing on purpose. Turning it off
+    # deliberately is done by naming a readable empty file instead.
+    if policy.scanned and not os.path.exists(abspath(root, args.denylist)):
+        print('no denylist at %s; known names are not being checked.'
+              % args.denylist, file=sys.stderr)
 
     if not problems:
         return 0
