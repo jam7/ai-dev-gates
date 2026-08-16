@@ -60,9 +60,13 @@ rules:
     # 以内"), enumeration ("ビルドもテストも全ゲートも通る"), and
     # neither-nor pairs ("ハッシュでも件名でも参照しない") are deliberate
     # parallel structures, and rewording them made every measured instance
-    # worse. Other particles stay checked.
+    # worse. か, ても and とも belong to the same family and were measured
+    # the same way in a downstream project: every instance was a paired
+    # construction saying "whether X or Y" (成功しても失敗しても,
+    # 設定どおりなのか事故なのか), and splitting the pair is what a reader
+    # loses. Other particles stay checked.
     no-doubled-joshi:
-      allow: ["は", "も", "でも"]
+      allow: ["は", "も", "でも", "か", "ても", "とも"]
     # Off: the rule cannot pair a paren group that wraps to a list item's
     # continuation line ("- 規則: 待ち時間 (`sleep` /\n  `setTimeout`) で"),
     # a construct this project's documents use everywhere. Measured
