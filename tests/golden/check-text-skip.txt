@@ -1,0 +1,3 @@
+textlint not found; skipping the text check.
+Install it (npm install -g textlint <rule packages>), or set TEXTLINT to its path.
+--- exit 0 ---

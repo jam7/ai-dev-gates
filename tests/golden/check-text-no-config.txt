@@ -1,0 +1,4 @@
+error: textlint is installed but tests/fixtures/text/no-such.yml is missing.
+Create it (tools/textlint/*.template.* are the starting points), or clear
+text_scope in tools/gate.conf. A check that cannot run must not pass quietly.
+--- exit 2 ---

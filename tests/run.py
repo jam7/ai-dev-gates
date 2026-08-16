@@ -114,6 +114,27 @@ CASES = [
       '--vocabulary', 'tests/fixtures/private/vocabulary.txt',
       '--allow', 'tests/fixtures/private/private-allow.txt',
       '--denylist', 'tests/fixtures/private/deny/denylist.list']),
+    # check-text, the one checker that needs an outside runtime. All four of
+    # its paths are fixed here with a stand-in textlint, so the cases run on a
+    # machine without Node -- which is the very situation the skip path is
+    # for. Nothing in scope stays silent (an unrelated commit must not learn
+    # whether this machine could have checked it); a missing textlint says so
+    # and passes; a present textlint with no configuration fails loudly with
+    # exit 2, because a configured check that quietly does nothing is worse
+    # than no check.
+    ('check-text-out-of-scope', 'tools/check-text.py',
+     ['--textlint', '/nonexistent/textlint',
+      'tests/fixtures/private/multi.txt']),
+    ('check-text-skip', 'tools/check-text.py',
+     ['--textlint', '/nonexistent/textlint', 'tests/fixtures/text/sample.md']),
+    ('check-text-run', 'tools/check-text.py',
+     ['--textlint', 'tests/fixtures/text/fake-textlint.sh',
+      '--config', 'tests/fixtures/text/rc.yml',
+      'tests/fixtures/text/sample.md']),
+    ('check-text-no-config', 'tools/check-text.py',
+     ['--textlint', 'tests/fixtures/text/fake-textlint.sh',
+      '--config', 'tests/fixtures/text/no-such.yml',
+      'tests/fixtures/text/sample.md']),
     # The wrapper finds trace-matrix.py in this repository and passes its
     # arguments through verbatim; without --gate it always runs and prints.
     ('check-trace-pass', 'tools/check-trace.py',

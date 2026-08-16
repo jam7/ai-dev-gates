@@ -1,0 +1,3 @@
+# A configuration that only has to exist: the stand-in textlint never reads
+# it. The case that matters is the one where this file is absent.
+rules: {}

@@ -1,0 +1,6 @@
+fake-textlint invoked
+  args: --config tests/fixtures/text/rc.yml tests/fixtures/text/sample.md
+
+tests/fixtures/text/sample.md
+  3:5  error  canned finding  fake-rule
+--- exit 1 ---
