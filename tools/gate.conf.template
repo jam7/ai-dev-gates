@@ -66,6 +66,21 @@ trace_args=""
 #   text_scope="\.md$"
 text_scope=""
 
+# The same, for ENGLISH prose. A second pair exists because one textlint
+# configuration cannot serve two languages: the Japanese sentence limit
+# counts characters and floods ordinary English (measured: 27 of 31
+# findings on one project came from its two English documents, none a
+# writing fault), and textlint has no `overrides` to switch rules per
+# file. Point text_scope at the Japanese documents and text_scope_en at
+# the English ones; a file matching both is checked by both. The English
+# configuration defaults to tools/textlint/textlintrc.en.yml (created
+# from its .template.yml, same contract as the Japanese one).
+#
+#   text_scope="^(?!README\.md$).*\.md$"
+#   text_scope_en="^README\.md$"
+text_scope_en=""
+text_config_en=""
+
 # Embedded repositories this project tracks as gitlinks on purpose
 # (submodule-style commit pointers), space separated. Any other staged
 # gitlink -- the `git add -A` accident with a nested private repo --
