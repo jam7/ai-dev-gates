@@ -30,9 +30,9 @@
 ### COMMIT-3: メッセージが 2 つのことを言っていたら分ける [SHOULD] [細部]
 - 対象: 全言語・全変更
 - 規則: コミットメッセージの件名を書いてみて「A し、ついでに B した」の形に
-  なったら、分割の合図とみなす。件名に `, and` / 「〜し、また〜」が出るのが典型
+  なったら、分割の合図とみなす。件名に `, and` / 「〜し、また〜」が出るのは典型
 - 理由: **書いた本人が自白している**。件名を 1 つの動詞句で書けないなら、
-  変更が 1 つでない可能性が高い (名詞の並列は該当しない。
+  変更は 1 つでない可能性が高い (名詞の並列は該当しない。
   「Update README for A and B」は 1 変更)
 - 悪い例: `cq-metrics: measure Python, and put this repository behind the gate`
   / 良い例: `cq-metrics: measure Python as well as the brace languages`

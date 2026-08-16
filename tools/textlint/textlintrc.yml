@@ -26,6 +26,14 @@ rules:
       max: 120
     # Off by default: lists and tables legitimately end without a period.
     ja-no-mixed-period: false
+    # は, も and でも legitimately repeat within one sentence in this
+    # project's prose: contrastive pairs ("ネストは 4 段以内、引数は 5 個
+    # 以内"), enumeration ("ビルドもテストも全ゲートも通る"), and
+    # neither-nor pairs ("ハッシュでも件名でも参照しない") are deliberate
+    # parallel structures, and rewording them made every measured instance
+    # worse. Other particles stay checked.
+    no-doubled-joshi:
+      allow: ["は", "も", "でも"]
 
   # Proper-noun tripwire (optional, needs two more packages):
   #
