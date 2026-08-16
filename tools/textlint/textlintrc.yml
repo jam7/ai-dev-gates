@@ -34,6 +34,13 @@ rules:
     # worse. Other particles stay checked.
     no-doubled-joshi:
       allow: ["は", "も", "でも"]
+    # Off: the rule cannot pair a paren group that wraps to a list item's
+    # continuation line ("- 規則: 待ち時間 (`sleep` /\n  `setTimeout`) で"),
+    # a construct this project's documents use everywhere. Measured
+    # 2026-08-16: every finding (4/4) was this false positive, zero were
+    # real. Isolated: the same text outside a list, or closed on one line,
+    # passes.
+    no-unmatched-pair: false
 
   # Proper-noun tripwire (optional, needs two more packages):
   #
