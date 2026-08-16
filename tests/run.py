@@ -103,6 +103,18 @@ CASES = [
       '--vocabulary', 'tests/fixtures/private/vocabulary.txt',
       '--allow', 'tests/fixtures/private/private-allow.txt',
       '--denylist', '/dev/null']),
+    # A named declaration file that does not exist fails loudly (exit 2)
+    # for all three options: it decides what the scan can see, and a trial
+    # clone without the private notes repo once got 0 findings from a
+    # nonexistent denylist -- the verification passed on nothing. The
+    # deliberate-empty idiom (--denylist /dev/null) stays legal and is
+    # already pinned by private-multi.
+    ('private-missing-denylist', 'tools/check-private.py',
+     ['--worktree', '--denylist', 'tests/fixtures/private/no-such.txt']),
+    ('private-missing-vocabulary', 'tools/check-private.py',
+     ['--worktree', '--vocabulary', 'tests/fixtures/private/no-such.txt']),
+    ('private-missing-allow', 'tools/check-private.py',
+     ['--worktree', '--allow', 'tests/fixtures/private/no-such.txt']),
     # Denylist boundary rules, one per character class: an ASCII term does
     # not match inside a longer alphanumeric token, a one-or-two-character
     # CJK term matches only next to a delimiter (a bare substring made such

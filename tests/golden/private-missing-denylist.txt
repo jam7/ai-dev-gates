@@ -1,0 +1,2 @@
+error: the declaration file named by --denylist does not exist: tests/fixtures/private/no-such.txt
+--- exit 2 ---

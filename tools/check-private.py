@@ -57,6 +57,11 @@ Usage:
   --vocabulary PATH   default tools/test-vocabulary.txt
   --denylist PATH     default notes/private-patterns.txt
   --allow PATH        default tools/private-allow.txt
+                      A named path that does not exist is an error (exit 2):
+                      it decides what the scan can see, and a run that
+                      silently checks nothing must not pass. An absent
+                      default is normal, and a readable empty file
+                      (--denylist /dev/null) is a deliberate "none".
   --data-scope RE     files whose data must use the vocabulary, repeatable
   --scan-scope RE     files scanned at all (defaults to the data scope plus
                       lib/ and src/), repeatable
@@ -448,9 +453,12 @@ def parse_args():
     g.add_argument('--worktree', action='store_true')
     g.add_argument('--range')
     g.add_argument('--all-history', action='store_true')
-    ap.add_argument('--vocabulary', default=DEFAULT_VOCAB, metavar='PATH')
-    ap.add_argument('--denylist', default=DEFAULT_DENYLIST, metavar='PATH')
-    ap.add_argument('--allow', default=DEFAULT_ALLOW, metavar='PATH')
+    ap.add_argument('--vocabulary', metavar='PATH',
+                    help='default: %s' % DEFAULT_VOCAB)
+    ap.add_argument('--denylist', metavar='PATH',
+                    help='default: %s' % DEFAULT_DENYLIST)
+    ap.add_argument('--allow', metavar='PATH',
+                    help='default: %s' % DEFAULT_ALLOW)
     ap.add_argument('--data-scope', action='append', metavar='RE')
     ap.add_argument('--scan-scope', action='append', metavar='RE')
     return ap.parse_args()
@@ -476,9 +484,36 @@ def report(problems, policy, args):
           file=sys.stderr)
 
 
+def declared_path(given, default, root, option):
+    """Resolve a declaration-file option.
+
+    A path the user named must exist: these files decide what the scan can
+    see, so a run that silently checks nothing is worse than one that fails.
+    Measured: a trial clone without the private notes repository fed
+    --all-history a nonexistent denylist, got 0 findings, and the
+    verification passed on nothing (reported from na, 2026-08-16). An
+    absent default stays fine -- not asking for a check is not an error.
+    An empty file that exists also stays fine: --denylist /dev/null is how
+    a run declares "no denylist", and readable emptiness is a statement.
+    """
+    if given is None:
+        return default
+    if not os.path.exists(abspath(root, given)):
+        sys.stderr.write('error: the declaration file named by %s does not '
+                         'exist: %s\n' % (option, given))
+        sys.exit(2)
+    return given
+
+
 def main():
     args = parse_args()
-    policy = Policy(repo_root(), args)
+    root = repo_root()
+    args.vocabulary = declared_path(args.vocabulary, DEFAULT_VOCAB, root,
+                                    '--vocabulary')
+    args.denylist = declared_path(args.denylist, DEFAULT_DENYLIST, root,
+                                  '--denylist')
+    args.allow = declared_path(args.allow, DEFAULT_ALLOW, root, '--allow')
+    policy = Policy(root, args)
 
     if args.staged:
         problems = check_staged(policy)
