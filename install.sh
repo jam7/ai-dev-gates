@@ -111,8 +111,10 @@ fi
 # not a conflict. The old check flagged every tools/* file, including
 # gate.conf and cq-baseline.txt, which are never written over at all.
 gate_tools="check-metrics.py check-private.py check-refs.py check-trace.py \
-cq-baseline.template.txt test-vocabulary.template.txt \
-private-allow.template.txt refs-allow.template.txt gate.conf.template"
+check-text.py cq-baseline.template.txt test-vocabulary.template.txt \
+private-allow.template.txt refs-allow.template.txt gate.conf.template \
+textlint/textlintrc.template.yml textlint/allow.template.yml \
+textlint/dict.template.js"
 
 conflicts=""
 add_conflict() {
@@ -229,11 +231,15 @@ if [ "$hooks" -eq 1 ]; then
        "$root/.githooks/"
     chmod +x "$root/.githooks/pre-commit" "$root/.githooks/pre-push" \
              "$root/.githooks/commit-msg"
+    mkdir -p "$root/tools/textlint"
     for n in $gate_tools; do
-      cp "tools/$n" "$root/tools/"
+      # Some entries carry a subdirectory (textlint/), so copy to the same
+      # relative place rather than flattening everything into tools/.
+      cp "tools/$n" "$root/tools/$n"
     done
     chmod +x "$root/tools/check-metrics.py" "$root/tools/check-private.py" \
-             "$root/tools/check-refs.py" "$root/tools/check-trace.py"
+             "$root/tools/check-refs.py" "$root/tools/check-trace.py" \
+             "$root/tools/check-text.py"
   fi
   # The project's own files: created when missing and never replaced, not even
   # by --force. gate.conf holds what this project measures, cq-baseline.txt the
@@ -260,6 +266,10 @@ if [ "$hooks" -eq 1 ]; then
   echo "  3. to enable the private-data vocabulary check, copy"
   echo "     tools/test-vocabulary.template.txt to tools/test-vocabulary.txt"
   echo "     (without it, only the structural checks run)"
+  echo "  4. optional, and only where Node is: to lint prose, copy"
+  echo "     tools/textlint/textlintrc.template.yml to textlintrc.yml, install"
+  echo "     what it names, and set text_scope in gate.conf. This check skips"
+  echo "     itself where textlint is missing, so keep it to writing quality."
 fi
 
 if [ "$hooks_only" -eq 1 ]; then
