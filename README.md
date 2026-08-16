@@ -665,10 +665,17 @@ push 済みのものを消すには履歴書き換え + force push になりま�
 note: this subject reads as two changes:
   cq-metrics: measure Python, and put this repository behind the gate
 
-If they are independent, splitting now costs one 'git reset'.
-Later it costs a history rewrite. If it really is one change,
-rephrase the subject and carry on -- nothing is blocked.
+The question is about the staged diff, not the wording. If two
+parts of it could be reverted independently, split now: it costs
+one 'git reset' here and a history rewrite later. Rephrase the
+subject only after looking at the diff and finding one change --
+rewording without looking defeats a tripwire. Nothing is blocked.
 ```
+
+警告への正しい応答は**件名の言い換えではなく diff の確認**です。実例があった
+(2026-08-16): 警告は「文体の指摘」と読まれ、件名の言い換えだけで混ざった diff が
+そのまま通った。判定対象は文ではなく変更の中身で、警告が消える言い換えは
+いくらでもあります。
 
 混ざったコミットは**後から一部だけ取り消せません**。revert すれば巻き添えが出ますし、
 履歴から消すには filter-repo でパスを狙い撃ちしてメッセージまで書き直すことになり、
