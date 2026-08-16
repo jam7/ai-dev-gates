@@ -39,6 +39,22 @@ rules:
         - "/[\\w.-]+\\.py/g"
     # Off by default: lists and tables legitimately end without a period.
     ja-no-mixed-period: false
+    # "" means majority vote per document, which turns the rule into what
+    # it should be here: an internal-consistency check. The rule's own
+    # defaults pin list items to である, but this repository holds both a
+    # ですます tutorial README and である-terse SKILL.md instructions --
+    # measured: every one of 15 findings was the pinned default arguing
+    # with a document that was already consistent with itself.
+    no-mix-dearu-desumasu:
+      preferInHeader: ""
+      preferInBody: ""
+      preferInList: ""
+    # Questions are legitimate here -- FAQ headings ("Q. 秘密情報は大丈夫?")
+    # and quoted inner speech -- and this repository's convention is ASCII
+    # punctuation, so it is the half-width mark that needs allowing.
+    # Exclamation stays forbidden: no measured legitimate use.
+    no-exclamation-question-mark:
+      allowHalfWidthQuestion: true
     # は, も and でも legitimately repeat within one sentence in this
     # project's prose: contrastive pairs ("ネストは 4 段以内、引数は 5 個
     # 以内"), enumeration ("ビルドもテストも全ゲートも通る"), and

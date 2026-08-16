@@ -897,8 +897,8 @@ Skill 側に「破壊的操作・ベースライン更新・修正計画は人�
 そこだけあなたの判断で裁定してください。むしろ低確度を断定してこないことが重要です。
 
 **Q. 秘密情報は大丈夫?**
-同梱スクリプトは 7 つあります (cq-metrics.py, git-cochange.py, cpp-coupling.py,
-trace-matrix.py, parse-lit-log.py, check-metrics.py, check-private.py)。
+同梱スクリプトは 7 つあります (cq-metrics.py / git-cochange.py / cpp-coupling.py /
+trace-matrix.py / parse-lit-log.py / check-metrics.py / check-private.py)。
 すべて完全ローカル・読み取り専用で外部送信なし。むしろ check-private.py は
 「私的データをリポジトリに入れない」ためのゲートです (第 9 章)。
 AI アシスタント自体の利用ポリシーは所属組織のルールに従ってください。
