@@ -1,0 +1,48 @@
+# What textlint checks in this project. Read by tools/check-text.py, which
+# runs only where textlint is installed (see README, "two portability tiers").
+#
+# This file is yours: install.sh creates it when missing and never replaces
+# it. YAML rather than JSON so that a rule can carry the reason it is on.
+#
+# The rule packages named here have to exist in the environment, or textlint
+# fails loudly -- deliberately: a configured check that quietly does nothing
+# is worse than no check. Install what this file names:
+#
+#   npm install -g textlint textlint-rule-preset-ja-technical-writing
+#
+# textlint is not in this repository and neither are its rules; only these
+# declarations are. Everything below is a starting point -- delete what does
+# not fit, and write why in a comment when the reason is not obvious.
+
+rules:
+  # Japanese technical writing: sentence length, comma count, mixed styles,
+  # doubled particles. The most standard preset, and the one whose findings
+  # read as prose problems rather than taste.
+  preset-ja-technical-writing:
+    # Prose in this project quotes commands and identifiers, which the
+    # default 100-character limit counts as prose. 120 keeps the rule useful
+    # without arguing about every line that carries a path.
+    sentence-length:
+      max: 120
+    # Off by default: lists and tables legitimately end without a period.
+    ja-no-mixed-period: false
+
+  # Proper-noun tripwire (optional, needs two more packages):
+  #
+  #   npm install -g @textlint-ja/textlint-rule-morpheme-match \
+  #                  textlint-filter-rule-allowlist
+  #
+  # Reports every proper noun the morphological analyser finds, so that a
+  # name reaching the documents has to be declared in allow.yml first. Useful
+  # where the prose is about private data (an author name, a work title);
+  # noise everywhere else. The dictionary is dict.js in this directory.
+  #
+  # "@textlint-ja/morpheme-match":
+  #   dictionaryPathList: ["./dict.js"]
+
+# Declared exceptions, with their reasons, live in allow.yml. Uncomment
+# together with the tripwire above.
+#
+# filters:
+#   allowlist:
+#     allowlistConfigPaths: ["./allow.yml"]
