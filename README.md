@@ -683,6 +683,56 @@ rephrase the subject and carry on -- nothing is blocked.
 だけなので、まだ分割が安い瞬間に問いを出すところまでが役割です。
 書く時点の指針は `coding-rules/rules/20-commits.md` にあります。
 
+### 4 つめ: 文章の品質 (textlint) — ここだけ環境依存です
+
+`tools/check-text.py` は、コミットに含まれる散文 (既定では `*.md`) を
+[textlint](https://textlint.github.io/) に掛けます。**既定では無効**で、
+`tools/gate.conf` の `text_scope` を設定したときだけ動きます。
+
+**チェッカーには携行性の二層があります。**
+
+| 層 | チェッカー | 動く条件 | 置いてよいもの |
+|---|---|---|---|
+| コア | check-metrics / check-private / check-refs / check-trace | 標準ライブラリの Python だけ。cp すればどのマシンでも同じ強さ | **安全網** (私的データ、参照の腐り) |
+| 環境依存 | check-text | Node + textlint が PATH にあるときだけ。無ければ通知して素通り | **文章の品質だけ** |
+
+check-text は textlint が無いマシンでは、こう言って通します:
+
+```text
+textlint not found; skipping the text check.
+Install it (npm install -g textlint <rule packages>), or set TEXTLINT to its path.
+```
+
+**つまりゲートの強さがマシンによって変わります。**これを許せるのは、検査するものが
+文章の品質だからです。**私的データの検査をこの層に足してはいけません** — skip される
+マシンがそのまま漏れ口になります。安全網は必ずコア層に置いてください。
+
+黙って素通りせず通知を出すのは、「見ていない」と「見て問題なし」を区別するためです。
+逆に、textlint はあるのに `tools/textlint/textlintrc.yml` が無いときは**大声で止めます**
+(exit 2)。設定したはずの検査が黙って何もしない状態は、検査が無いより悪いためです。
+
+設定と宣言はリポジトリ側、エンジンは環境側という分担です:
+
+```text
+tools/textlint/textlintrc.yml   何を検査するか (install.sh は上書きしない)
+tools/textlint/allow.yml        指摘しない語 + その理由 (cq-baseline.txt と同じ契約)
+tools/textlint/dict.js          固有名詞トリップワイヤの辞書 (任意)
+npm install -g textlint ...     エンジンとルール = 環境側
+```
+
+設定をリポジトリ直下 (`.textlintrc`) に置いていないのは意図的です。直下に置くと
+エディタのプラグインが自動発見してしまい、**ルールを入れていない人が clone しただけで
+設定エラーになります**。`tools/textlint/` なら誰のエディタも勝手に読みません
+(その代わり、保存時の自動 lint は効きません)。
+
+`dict.js` の固有名詞トリップワイヤは任意機能で、**私的な名前が散文に混じる文書**
+(作品名・人名を扱うプロジェクト) 向けです。形態素解析が固有名詞と判定した語をすべて
+報告するので、`allow.yml` に宣言しない限り通りません — denylist が「誰も知らない名前」を
+捕まえられない問題への答えです。実測した限界も 2 つあります: 普通名詞の合成でできた
+題名 (『架空の蔵書目録』) は固有名詞と判定されないので捕まりません。また辞書 (IPAdic) は
+更新が止まっており、普通の語を固有名詞と誤判定することがあります (出てきたら
+`allow.yml` に理由付きで足します)。
+
 ### 設定
 
 PJ 固有の設定は `tools/gate.conf` にまとまっています。フック本体には何も書きません。
@@ -691,6 +741,7 @@ PJ 固有の設定は `tools/gate.conf` にまとまっています。フック�
 ext=".dart"                          # 構造チェックの対象拡張子 (空 = 全部)
 scope="lib src"                      # 対象ディレクトリ (空 = リポジトリ全体)
 extra_checks="flutter analyze"       # ほかに走らせたいコマンド (任意)
+text_scope="\.md$"                   # textlint の対象 (空 = 無効。環境依存の層)
 ```
 
 **この設定は `--force` でも保持されます。** フック本体はこちら側のファイルなので更新で
