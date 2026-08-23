@@ -925,7 +925,10 @@ AI アシスタント自体の利用ポリシーは所属組織のルールに�
 ~/.claude/skills/
 ├── spec-dev/       SKILL.md + trace-matrix.py + templates/ (requirements/spec/design の雛形)
 ├── fix-loop/       SKILL.md (台帳の書式もここに)
-├── coding-rules/   SKILL.md + rules/ (00-principles / 10-complexity / 90-rule-format)
+├── coding-rules/   SKILL.md + rules/ (同梱の既定ルール。00-principles /
+│                   10-complexity / 20-commits / 30-tests / 40-references /
+│                   50-real-data / 60-concurrency / 70-logging / 90-rule-format。
+│                   各 .md に .template.md が対になっている)
 ├── cq-review/      SKILL.md + cq-metrics.py + git-cochange.py + cpp-coupling.py
 │                   + references/checklist.md
 ├── self-review/    SKILL.md + references/compiler-checklist.md
