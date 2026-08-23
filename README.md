@@ -927,7 +927,7 @@ AI アシスタント自体の利用ポリシーは所属組織のルールに�
 ├── fix-loop/       SKILL.md (台帳の書式もここに)
 ├── coding-rules/   SKILL.md + rules/ (同梱の既定ルール。00-principles /
 │                   10-complexity / 20-commits / 30-tests / 40-references /
-│                   50-real-data / 60-concurrency / 70-logging / 90-rule-format。
+│                   50-logging / 60-concurrency / 70-real-data / 90-rule-format。
 │                   各 .md に .template.md が対になっている)
 ├── cq-review/      SKILL.md + cq-metrics.py + git-cochange.py + cpp-coupling.py
 │                   + references/checklist.md
