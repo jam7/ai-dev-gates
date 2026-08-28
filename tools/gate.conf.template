@@ -23,6 +23,13 @@ scope=""
 #   extra_checks="python3 tests/run.py"
 extra_checks=""
 
+# The same, but run on every commit, whatever it touches. For invariants a
+# documentation-only commit can break -- extra_checks would skip that commit.
+# Keep it fast: this one runs even on a one-line README fix.
+#
+#   always_checks="python3 tests/check-origin.py"
+always_checks=""
+
 # A document of this project's, shown as "see <doc>" when the private-data
 # gate blocks a commit or a push: what counts as private here, and how to
 # recover when something slipped in. Empty shows nothing.
