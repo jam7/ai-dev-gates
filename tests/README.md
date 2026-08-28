@@ -39,6 +39,17 @@ characterization test です (README 第 10 章ステップ 3 で他プロジェ
 | JS のテンプレートリテラル内の `{}` はブロックでない | `braces/literals.js` |
 | **Rust のライフタイムで走査がずれる (既知の限界)** | `braces/literals.rs` |
 
+settings.json のマージ (`register-claude-hooks.py`) は `--dry-run` で結果を印字させ、
+書き込まずに固定しています。押さえているのは次の判断です。
+
+| 判断 | 押さえている fixture |
+|---|---|
+| 他人の hook を残し、自分の group を足す | `hooks/settings-other.json` |
+| 2 回目は何も言わない・書かない (冪等) | `hooks/settings-home.json` (`--home`) |
+| ホーム登録済みを複製せず付け替える | `hooks/settings-home.json` (`--project`) |
+| 想定外の形は書かずに exit 2 | `hooks/settings-broken.json` |
+| 設定ファイルがまだ無い場合 | (存在しないパスを渡す) |
+
 ## 記録されている既知の限界
 
 golden は「今の挙動」なので、**バグや限界もそのまま記録されます**。意図的です。

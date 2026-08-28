@@ -29,6 +29,8 @@ METRICS = '.claude/skills/cq-review/cq-metrics.py'
 TRACE = '.claude/skills/spec-dev/trace-matrix.py'
 COUPLING = '.claude/skills/cq-review/cpp-coupling.py'
 REFS = 'tools/check-refs.py'
+REGISTER = 'tools/register-claude-hooks.py'
+HOOK_FIXTURES = 'tests/fixtures/hooks'
 
 CASES = [
     # Every function with its length, depth and parameter count.
@@ -174,6 +176,29 @@ CASES = [
     ('trace-pending', TRACE,
      ['--code', 'tests/fixtures/trace-pending/tests',
       'tests/fixtures/trace-pending/docs']),
+    # The settings merge, which edits a file nobody here owns. --dry-run
+    # prints the result instead of writing, so the cases pin the merge and
+    # touch nothing. A settings file carrying someone else's Stop hook keeps
+    # it and gets a group of its own; a second run says so and changes
+    # nothing; the same file installed for a project has its commands
+    # retargeted rather than duplicated (two copies would both fire); a file
+    # that is not the expected shape is refused with exit 2 instead of being
+    # guessed at; and no file at all is the fresh-install path.
+    ('hooks-register', REGISTER,
+     ['--home', '--settings', HOOK_FIXTURES + '/settings-other.json',
+      '--dry-run']),
+    ('hooks-register-again', REGISTER,
+     ['--home', '--settings', HOOK_FIXTURES + '/settings-home.json',
+      '--dry-run']),
+    ('hooks-register-retarget', REGISTER,
+     ['--project', '--settings', HOOK_FIXTURES + '/settings-home.json',
+      '--dry-run']),
+    ('hooks-register-unreadable', REGISTER,
+     ['--home', '--settings', HOOK_FIXTURES + '/settings-broken.json',
+      '--dry-run']),
+    ('hooks-register-fresh', REGISTER,
+     ['--project', '--settings', HOOK_FIXTURES + '/no-such.json',
+      '--dry-run']),
 ]
 
 

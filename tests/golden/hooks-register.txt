@@ -1,0 +1,50 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo done"
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 ~/.claude/hooks/quality-note-check.py --check"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 ~/.claude/hooks/coding-rules-reminder.py"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 ~/.claude/hooks/quality-note-check.py --touched"
+          }
+        ]
+      }
+    ]
+  },
+  "theme": "dark"
+}
+  registered coding-rules-reminder.py (PreToolUse)
+  registered quality-note-check.py (PostToolUse)
+  registered quality-note-check.py (Stop)
+--- exit 0 ---

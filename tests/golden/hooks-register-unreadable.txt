@@ -1,0 +1,3 @@
+error: cannot read tests/fixtures/hooks/settings-broken.json: "hooks" is not a JSON object
+nothing was written.
+--- exit 2 ---
