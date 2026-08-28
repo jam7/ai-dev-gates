@@ -61,7 +61,27 @@ D-01 の表が間違っている合図。表を直す方が正しい (フラグ�
 「install.sh 自身が消した `rules/80-newrule.md` 1 個」で、
 `diff -rq` を取るまで分からなかった。
 
-## 未決 (D-05 候補)
+## D-05: 原本リポジトリでは template と実体が一致する [不変条件]
+
+このリポジトリが持つ `CLAUDE.md` と `coding-rules/rules/*.md` は、
+カスタマイズではなく**配っている原本そのもの**。差分は「原本を直して手元を
+忘れた」以外に意味を持たない。
+
+実測 (2026-08-28)。次のコミットが `CLAUDE.template.md` に「notes/ に
+プログラムを置かない」を足した。
+
+> spec-dev: notes/ as its own private repository is a supported shape
+
+このリポジトリの `CLAUDE.md` は更新されなかった。以後 5 コミット、誰も
+気づかなかった。**古い規約も規約に見える**ため。
+
+install.sh はこれを直せない。自リポジトリへの install は skip する。
+既存の CLAUDE.md も置き換えない (D-01)。よって機械で見るしかない。
+`tests/check-origin.py` を gate.conf の `extra_checks` から回す。
+配布はしない。利用者側の CLAUDE.md とルールは**違っていて当然**で、
+この義務は原本にだけある。
+
+## 未決 (D-06 候補)
 
 **パッケージが新しい既定ルールを追加したとき、既存の導入先で有効になるか。**
 現状は新規導入では有効 (`*.template.md` → `*.md` を生成)、更新導入では
