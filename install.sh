@@ -9,6 +9,7 @@
 #   ./install.sh /path/to/repo --hooks-only   the gate, and not the skills
 #   ...            --claude-hooks       also the Claude Code hooks that ask for
 #                                       coding-rules and the review note
+#   ...            --claude-hooks-only  those hooks, and nothing else
 #   ...            --force              replace what differs (how you update)
 #
 # Run without arguments, or with --help, to see this text.
@@ -18,6 +19,13 @@
 # ${CLAUDE_PROJECT_DIR} and can be committed, so the team gets them. Do not
 # install both: hook settings merge across levels, so each hook would fire
 # twice. The entries are merged into settings.json, never written over it.
+#
+# --claude-hooks-only exists because the hooks are worth having in a project
+# that wants nothing else from this package. --claude-hooks alone still
+# installs the skills and CLAUDE.md, so a project with its own CLAUDE.md or
+# an edited skill is told about the difference and nothing is installed at
+# all -- and --force there would replace the project's CLAUDE.md, which is
+# not what someone asking for a hook wanted.
 #
 # --hooks-only is for the common case of skills installed once in ~/.claude
 # and a gate wanted in this repository: hooks are per-repository, since
@@ -43,6 +51,8 @@ root=""
 hooks=0
 hooks_only=0
 claude_hooks=0
+claude_hooks_only=0
+skills=1
 force=0
 home_install=0
 [ "$#" -eq 0 ] && { usage; exit 0; }
@@ -52,6 +62,7 @@ for arg in "$@"; do
     --hooks) hooks=1 ;;
     --hooks-only) hooks=1; hooks_only=1 ;;
     --claude-hooks) claude_hooks=1 ;;
+    --claude-hooks-only) claude_hooks=1; claude_hooks_only=1 ;;
     --force) force=1 ;;
     -h|--help) usage; exit 0 ;;
     -*) echo "error: unknown option: $arg (try --help)" >&2; exit 2 ;;
@@ -63,6 +74,9 @@ for arg in "$@"; do
       root="$arg" ;;
   esac
 done
+if [ "$hooks_only" -eq 1 ] || [ "$claude_hooks_only" -eq 1 ]; then
+  skills=0
+fi
 
 if [ "$home_install" -eq 1 ] && [ -n "$root" ]; then
   echo "error: --home and a project directory are two different targets" >&2
@@ -77,7 +91,7 @@ fi
 # running from a repo that tracks the installed form
 src=skills
 [ -d "$src" ] || src=.claude/skills
-if [ ! -d "$src" ] && [ "$hooks_only" -eq 0 ]; then
+if [ ! -d "$src" ] && [ "$skills" -eq 1 ]; then
   echo "error: no skills directory found next to install.sh" >&2
   exit 1
 fi
@@ -116,7 +130,7 @@ fi
 # tools/ are already there and are the original, so copying them onto
 # themselves would only destroy them. .githooks/ is still worth placing, since
 # that is a different directory from the githooks/ they come from.
-if [ "$hooks_only" -eq 0 ]; then
+if [ "$skills" -eq 1 ]; then
   mkdir -p "$dest"
 fi
 self=0
@@ -147,7 +161,7 @@ dir_unchanged() {
   diff -rq -x '__pycache__' -x '*.pyc' "$1" "$2" >/dev/null 2>&1
 }
 
-if [ "$self" -eq 0 ] && [ "$hooks_only" -eq 0 ]; then
+if [ "$self" -eq 0 ] && [ "$skills" -eq 1 ]; then
   for d in "$src"/*/; do
     name=$(basename "$d")
     if [ -e "$dest/$name" ] && ! dir_unchanged "$d" "$dest/$name"; then
@@ -195,13 +209,13 @@ if [ -n "$conflicts" ] && [ "$force" -eq 0 ]; then
 fi
 
 # ---- write ---------------------------------------------------------------
-if [ "$self" -eq 1 ] && [ "$hooks_only" -eq 0 ]; then
+if [ "$self" -eq 1 ] && [ "$skills" -eq 1 ]; then
   echo "  skills already here (installing into their own repository)"
 fi
 uptodate=0
 for d in "$src"/*/; do
   [ "$self" -eq 1 ] && break
-  [ "$hooks_only" -eq 1 ] && break
+  [ "$skills" -eq 0 ] && break
   name=$(basename "$d")
   if [ -e "$dest/$name" ] && dir_unchanged "$d" "$dest/$name"; then
     uptodate=$((uptodate + 1))
@@ -242,7 +256,7 @@ fi
 # project install only: provide CLAUDE.md (project conventions) from template.
 # Home installs never touch ~/CLAUDE.md.
 if [ -n "$root" ] && [ -f CLAUDE.template.md ] && [ "$self" -eq 0 ] \
-   && [ "$hooks_only" -eq 0 ] \
+   && [ "$skills" -eq 1 ] \
    && ! cmp -s CLAUDE.template.md "$root/CLAUDE.md" 2>/dev/null; then
   cp CLAUDE.template.md "$root/CLAUDE.md"
   echo "  installed CLAUDE.md (project conventions)"
@@ -339,6 +353,11 @@ if [ "$hooks_only" -eq 1 ]; then
   echo "done. the gate is installed; the skills were left alone."
   echo "check-metrics.py looks for cq-metrics.py in this repository first and"
   echo "then in ~/.claude/skills, so a home install of the skills is enough."
+elif [ "$claude_hooks_only" -eq 1 ]; then
+  echo "done. the Claude Code hooks are installed; nothing else was touched."
+  echo "the hooks name the coding-rules skill, which they do not install:"
+  echo "without it the reminder still fires and asks for rules that are not"
+  echo "there, so install the skills too (--home, or a project install)."
 else
   echo "done. installed to: $dest"
   echo "restart Claude Code (in the project directory, if project install) to pick up the skills."

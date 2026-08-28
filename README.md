@@ -66,12 +66,19 @@ cd ai-dev-gates
 Skill の複製を作らずにゲートだけ入れられます。
 
 ```bash
-./install.sh /path/to/your-repo --hooks-only
+./install.sh /path/to/your-repo --hooks-only         # コミットゲートだけ
+./install.sh /path/to/your-repo --claude-hooks-only  # Claude Code hooks だけ
 ```
 
-`.githooks/` と `tools/` だけを置き、`.claude/skills/` も `CLAUDE.md` も作りません。
-`check-metrics.py` は cq-metrics.py を**リポジトリ内 → `~/.claude/skills/` の順で
-探す**ので、ホーム導入だけで動きます。
+`--hooks-only` は `.githooks/` と `tools/` だけを置き、`.claude/skills/` も
+`CLAUDE.md` も作りません。`check-metrics.py` は cq-metrics.py を**リポジトリ内 →
+`~/.claude/skills/` の順で探す**ので、ホーム導入だけで動きます。
+
+`--claude-hooks-only` は `.claude/hooks/` と `settings.json` の登録だけを行います。
+プロジェクト固有の CLAUDE.md や編集済みの Skill がある場合、
+**`--claude-hooks` はその差分で止まります** (何も入りません)。そこで `--force` を
+使うと CLAUDE.md がテンプレートで上書きされるので、hook だけ欲しいときは
+`--claude-hooks-only` を使ってください。
 
 ### 更新のしかた (上書きは起きない)
 
@@ -839,6 +846,7 @@ git hook では捕まえられません。
 ```bash
 ./install.sh --home --claude-hooks              # 自分の全プロジェクトで
 ./install.sh /path/to/your-repo --claude-hooks  # チームに配る (コミットする)
+./install.sh /path/to/your-repo --claude-hooks-only  # hook だけ (下記)
 ```
 
 - **両方には入れないでください。** hook の設定は階層をまたいで**マージ**されるので、
@@ -851,6 +859,13 @@ git hook では捕まえられません。
 - 効き始めるのは**次のセッションから**です (hook は起動時に読まれます)
 - 外すときは `settings.json` から該当の 3 エントリを消します。group ごと消しても
   他の hook は別 group なので巻き添えになりません
+- **`--claude-hooks` は Skill と CLAUDE.md も入れます。** 既存の CLAUDE.md や
+  編集済み Skill と差分があると衝突として列挙され、**何も入りません**。hook だけを
+  足したいときは `--claude-hooks-only` を使います (`--force` は CLAUDE.md を
+  テンプレートで置き換えてしまうので、この用途には使えません)
+- ただし hook は coding-rules Skill を**前提にします** (「読んで書け」と言うだけで、
+  ルール本体は置きません)。Skill がホームにも無い環境で hook だけ入れると、
+  存在しないルールを読ませようとします
 
 ## 10. 既存プロジェクトに後から導入する — 計測からリファクタリングまで
 
