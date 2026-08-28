@@ -7,9 +7,17 @@
 #                                       -> commit .claude/skills to share it
 #   ./install.sh /path/to/repo --hooks  also the commit gate (.githooks, tools/)
 #   ./install.sh /path/to/repo --hooks-only   the gate, and not the skills
+#   ...            --claude-hooks       also the Claude Code hooks that ask for
+#                                       coding-rules and the review note
 #   ...            --force              replace what differs (how you update)
 #
 # Run without arguments, or with --help, to see this text.
+#
+# --claude-hooks goes with either target. For --home the commands point at
+# ~/.claude/hooks and apply everywhere; for a project they point at
+# ${CLAUDE_PROJECT_DIR} and can be committed, so the team gets them. Do not
+# install both: hook settings merge across levels, so each hook would fire
+# twice. The entries are merged into settings.json, never written over it.
 #
 # --hooks-only is for the common case of skills installed once in ~/.claude
 # and a gate wanted in this repository: hooks are per-repository, since
@@ -34,6 +42,7 @@ usage() {
 root=""
 hooks=0
 hooks_only=0
+claude_hooks=0
 force=0
 home_install=0
 [ "$#" -eq 0 ] && { usage; exit 0; }
@@ -42,6 +51,7 @@ for arg in "$@"; do
     --home) home_install=1 ;;
     --hooks) hooks=1 ;;
     --hooks-only) hooks=1; hooks_only=1 ;;
+    --claude-hooks) claude_hooks=1 ;;
     --force) force=1 ;;
     -h|--help) usage; exit 0 ;;
     -*) echo "error: unknown option: $arg (try --help)" >&2; exit 2 ;;
@@ -78,8 +88,17 @@ if [ -n "$root" ]; then
     exit 1
   fi
   dest="$root/.claude/skills"
+  claude_dest="$root/.claude/hooks"
+  settings="$root/.claude/settings.json"
 else
   dest="$HOME/.claude/skills"
+  claude_dest="$HOME/.claude/hooks"
+  settings="$HOME/.claude/settings.json"
+fi
+
+if [ "$claude_hooks" -eq 1 ] && [ ! -d claude-hooks ]; then
+  echo "error: no claude-hooks directory found next to install.sh" >&2
+  exit 1
 fi
 
 if [ "$hooks" -eq 1 ]; then
@@ -122,14 +141,16 @@ add_conflict() {
 "
 }
 
-skill_unchanged() {
+# Directories compare equal when their .py files do: an installed hook
+# imports hooklib, so the destination grows a __pycache__ the source never has.
+dir_unchanged() {
   diff -rq -x '__pycache__' -x '*.pyc' "$1" "$2" >/dev/null 2>&1
 }
 
 if [ "$self" -eq 0 ] && [ "$hooks_only" -eq 0 ]; then
   for d in "$src"/*/; do
     name=$(basename "$d")
-    if [ -e "$dest/$name" ] && ! skill_unchanged "$d" "$dest/$name"; then
+    if [ -e "$dest/$name" ] && ! dir_unchanged "$d" "$dest/$name"; then
       add_conflict "$dest/$name"
     fi
   done
@@ -154,6 +175,15 @@ if [ "$hooks" -eq 1 ]; then
   fi
 fi
 
+if [ "$claude_hooks" -eq 1 ] && [ "$self" -eq 0 ]; then
+  for f in claude-hooks/*.py; do
+    t="$claude_dest/$(basename "$f")"
+    if [ -e "$t" ] && ! cmp -s "$f" "$t"; then
+      add_conflict "$t"
+    fi
+  done
+fi
+
 if [ -n "$conflicts" ] && [ "$force" -eq 0 ]; then
   echo "error: these differ from this package's versions and would be replaced:" >&2
   printf '%s' "$conflicts" >&2
@@ -173,7 +203,7 @@ for d in "$src"/*/; do
   [ "$self" -eq 1 ] && break
   [ "$hooks_only" -eq 1 ] && break
   name=$(basename "$d")
-  if [ -e "$dest/$name" ] && skill_unchanged "$d" "$dest/$name"; then
+  if [ -e "$dest/$name" ] && dir_unchanged "$d" "$dest/$name"; then
     uptodate=$((uptodate + 1))
     continue
   fi
@@ -216,6 +246,39 @@ if [ -n "$root" ] && [ -f CLAUDE.template.md ] && [ "$self" -eq 0 ] \
    && ! cmp -s CLAUDE.template.md "$root/CLAUDE.md" 2>/dev/null; then
   cp CLAUDE.template.md "$root/CLAUDE.md"
   echo "  installed CLAUDE.md (project conventions)"
+fi
+
+if [ "$claude_hooks" -eq 1 ]; then
+  # Installing into the repository the hooks come from: name the originals
+  # rather than keeping a second copy of them in step (as with core.hooksPath).
+  register_args="--home"
+  if [ -n "$root" ]; then
+    register_args="--project"
+    [ "$self" -eq 1 ] && register_args="--project --hooks-dir claude-hooks"
+  fi
+  if [ "$self" -eq 1 ]; then
+    echo "  claude hooks already here (installing into their own repository)"
+  elif dir_unchanged claude-hooks "$claude_dest"; then
+    echo "  up to date: the Claude Code hooks already match this package"
+  else
+    mkdir -p "$claude_dest"
+    cp claude-hooks/hooklib.py claude-hooks/coding-rules-reminder.py \
+       claude-hooks/quality-note-check.py "$claude_dest/"
+    chmod +x "$claude_dest/coding-rules-reminder.py" \
+             "$claude_dest/quality-note-check.py"
+    echo "  installed the Claude Code hooks to $claude_dest"
+  fi
+  # The settings file is the user's, so it is merged and never replaced. If
+  # the merge cannot read it, the scripts stay where they are and it is said
+  # plainly: half an install that claims success is worse than none.
+  if ! python3 tools/register-claude-hooks.py $register_args \
+       --settings "$settings"; then
+    echo "the hook scripts are in place, but settings.json was left alone." >&2
+    echo "fix the file named above, or add the entries by hand:" >&2
+    echo "  python3 tools/register-claude-hooks.py $register_args \\" >&2
+    echo "    --settings $settings --dry-run" >&2
+    exit 1
+  fi
 fi
 
 if [ "$hooks" -eq 1 ]; then
@@ -280,4 +343,7 @@ else
   echo "done. installed to: $dest"
   echo "restart Claude Code (in the project directory, if project install) to pick up the skills."
   echo "try: python3 $dest/cq-review/cq-metrics.py <your-source-dir>"
+fi
+if [ "$claude_hooks" -eq 1 ]; then
+  echo "the Claude Code hooks start at the next session (they are read at startup)."
 fi
