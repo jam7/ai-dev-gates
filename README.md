@@ -41,6 +41,8 @@ git commit -m "Add AI dev skills"
 合わせた変更をコミットで共有できます。
 
 `--hooks` を付けると、コミット時に自動で走るゲート (第 9 章) も一緒に入ります。
+`--claude-hooks` を付けると、Claude Code のセッション中に「coding-rules を読んだか」
+「準拠メモを書いたか」を促す hook (第 9 章) も入ります。
 
 ### B. 自分のホームに導入する (個人で常用する場合)
 
@@ -48,6 +50,7 @@ git commit -m "Add AI dev skills"
 git clone https://github.com/jam7/ai-dev-gates.git
 cd ai-dev-gates
 ./install.sh --home # ~/.claude/skills/ にコピー。全プロジェクトで有効
+./install.sh --home --claude-hooks  # Claude Code の hook も入れる (第 9 章)
 ```
 
 引数なしの `./install.sh` (または `--help`) は使い方を表示します。
@@ -167,9 +170,10 @@ Skill は「`/spec-dev` のようにコマンドで呼ぶ」「会話で『spec-
 どちらでも使えます。該当する場面では AI が自分から使うこともあります
 (Copilot も frontmatter の description を見て同じように判断します)。
 
-このほかに、Skill ではない**コミットゲート** (git hooks) が同梱されています。
-決めたことを人間にも機械的に守らせる仕組みですが、**入れるのは新規プロジェクトか、
-返済が終わったプロジェクトだけ**です (第 9 章)。
+このほかに、Skill ではない**自動ゲート**が同梱されています。決めたことを人間にも
+機械的に守らせる仕組みで、コミット時に走る git hooks と、Claude Code のセッション中に
+走る hooks の 2 種類があります (第 9 章)。前者を**入れるのは新規プロジェクトか、
+返済が終わったプロジェクトだけ**です。
 
 ---
 
@@ -270,6 +274,8 @@ Claude: fix-loop で進めます。
 変更には付きません)。ただし自動発動はベストエフォートなので、確実に効かせたいときは
 「レビューパック付きで出して」と言うか、プロジェクトの CLAUDE.md に
 「コードを提示するときは self-review を適用する」と 1 行書いてください。
+それでも忘れるとき用に、**メモが無いまま終わろうとしたら止める** hook が第 9 章に
+あります。
 
 ### 使ってみるとこうなる (下の例に人間の発言がないのは、AI がパッチを出す側だから)
 
@@ -405,6 +411,9 @@ python3 ~/.claude/skills/cq-review/cpp-coupling.py --root src --module-depth 2 \
 `.claude/skills/coding-rules/rules/*.md` にあり、**チームが .md を追加・編集・削除して
 git で共有できます**。デフォルト (Clean Code の要点。cq-review のチェックリストと共通) は
 同梱済みで、スキルを更新してもチームのルールは install.sh が保持します。
+
+読み込ませること自体を忘れる問題は、この Skill では解決できません (指示書は会話の
+最初に 1 回読まれるだけだからです)。編集の直前に割り込む hook を第 9 章で扱います。
 
 ### 使ってみるとこうなる
 
@@ -562,7 +571,7 @@ Claude: 会話にしか無い情報を洗い出しました。まずファイル
 
 ---
 
-## 9. 決めたことを維持する — コミットゲート (git hooks)
+## 9. 決めたことを維持する — 自動ゲート (git hooks / Claude Code hooks)
 
 ここまでの Skill は Claude への指示書ですが、この章だけは**人間にも機械的に効く
 ゲート**です。`./install.sh <repo> --hooks` で入り、`git commit` / `git push` のたびに
@@ -798,6 +807,51 @@ cq-metrics.py が壊れると「何も測らずに通る」ゲートになるた
 | 途中まで進んでいる | cq-review で返済する。ゲートはまだ入れない |
 | 返済が打ち止めになった | 残りを理由付きで宣言し、ゲートを入れる |
 
+### 忘れる方を先に潰す — Claude Code hooks (git hook とは別物)
+
+ここまでのゲートは**コミットの瞬間**に効きます。しかし「coding-rules を読んでから
+書く」「準拠メモを添えて出す」は、**コミットより前に終わってしまっている**ので
+git hook では捕まえられません。
+
+**困りごと**: この 2 つは CLAUDE.md と memory の両方に書いてあるのに、**同じ
+セッション中に 2 回忘れられました**。どちらも会話の開始時に 1 回読むだけのもので、実際に編集する
+数千トークン後には残っていないためです。
+
+**解決**: 忘れる瞬間の隣で Claude Code 自身に言わせます。`--claude-hooks` で
+入る 3 つの hook が、編集の直前とターンの終わりに割り込みます。
+
+| いつ | 何を見て | 何をする |
+|---|---|---|
+| Edit / Write の直前 | プロダクションコードか | セッション最初の 1 回だけ「coding-rules を読んで書け」と差し込む (ブロックしない) |
+| Edit / Write の直後 | 同上 | 「このターンはコードを触った」と印を残すだけ |
+| ターン終了時 | 印があるか、メモを書いたか | **書いていなければ終了をブロックし**、準拠メモの 5 項目を要求する |
+
+3 つめが本体です。ターン終了時に会話ログ (`~/.claude/projects/<cwd>/<session>.jsonl`)
+の**そのターン以降の発言だけ**を読み、`準拠メモ` / `compliance note` に当たらなければ
+止めます。過去のターンで書いたメモが今回の欠落を隠さないよう、範囲は意図的に
+狭めてあります。ログが読めなかったときも止めます — 空振りの催促はコスト 1 文、
+見逃しはレビュー 1 回分だからです。
+
+対象は**自分たちが書くコード**だけです (`.py .go .dart .ts .c ...` の列挙。
+`test/` `spec/` `__tests__/` とビルド生成物・`node_modules/` ・`*.g.dart` は除外)。
+長いテストは往々にして正しいので、構造の催促をしても意味がありません。
+
+```bash
+./install.sh --home --claude-hooks              # 自分の全プロジェクトで
+./install.sh /path/to/your-repo --claude-hooks  # チームに配る (コミットする)
+```
+
+- **両方には入れないでください。** hook の設定は階層をまたいで**マージ**されるので、
+  ホームとプロジェクトの両方に入れると 1 回の編集で 2 回発火します
+- 登録先は `settings.json` です。他の人が書いた hook (通知音など) を消さないよう、
+  install.sh は**自分の group を足すだけのマージ**を行い、書き込む前に
+  `settings.json.bak` を残します。既に登録済みなら何も書きません
+- プロジェクト導入では `${CLAUDE_PROJECT_DIR}` 経由で参照するので、
+  `.claude/hooks/` と `.claude/settings.json` をコミットすればチーム全員に効きます
+- 効き始めるのは**次のセッションから**です (hook は起動時に読まれます)
+- 外すときは `settings.json` から該当の 3 エントリを消します。group ごと消しても
+  他の hook は別 group なので巻き添えになりません
+
 ## 10. 既存プロジェクトに後から導入する — 計測からリファクタリングまで
 
 **シナリオ**: 開発中のプロジェクトにこのツール群を導入し、たまっているコード品質の
@@ -951,6 +1005,19 @@ AI アシスタント自体の利用ポリシーは所属組織のルールに�
                     + cq-baseline.txt / test-vocabulary.txt (宣言ファイル。
                       *.template.txt が原本で、install.sh は上書きしない)
 ```
+
+Claude Code hooks (`--claude-hooks` を付けたときだけ配置。ホーム導入なら
+`~/.claude/hooks/`、プロジェクト導入なら `<repo>/.claude/hooks/`):
+
+```
+hooks/
+├── coding-rules-reminder.py  最初の編集時に coding-rules を促す
+├── quality-note-check.py     --touched で印を残し、--check で準拠メモを要求する
+└── hooklib.py                両者が共有する判定 (何がプロダクションコードか)
+```
+
+`settings.json` への登録は install.sh が `tools/register-claude-hooks.py` を通して
+行います (既存の hook を残すマージ。単体でも実行でき、`--dry-run` で結果だけ見られます)。
 
 - スクリプト 7 つは Python 3.6+ 標準ライブラリのみ。単体実行可 (`--help` あり)。
   cq-metrics.py は `--csv --label <commit>` で品質推移の記録もできる
