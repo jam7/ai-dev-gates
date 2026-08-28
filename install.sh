@@ -21,11 +21,11 @@
 # twice. The entries are merged into settings.json, never written over it.
 #
 # --claude-hooks-only exists because the hooks are worth having in a project
-# that wants nothing else from this package. --claude-hooks alone still
-# installs the skills and CLAUDE.md, so a project with its own CLAUDE.md or
-# an edited skill is told about the difference and nothing is installed at
-# all -- and --force there would replace the project's CLAUDE.md, which is
-# not what someone asking for a hook wanted.
+# that wants nothing else from this package: --claude-hooks alone also
+# installs the skills and CLAUDE.md. It was added while a project with its
+# own CLAUDE.md could not get the hooks at all -- the difference stopped the
+# run, and the --force it suggested replaced that CLAUDE.md. That is fixed
+# (ADR-001); the option stays because "only the hooks" is a real request.
 #
 # --hooks-only is for the common case of skills installed once in ~/.claude
 # and a gate wanted in this repository: hooks are per-repository, since
@@ -35,11 +35,24 @@
 # already identical to this package is left alone and is not a conflict, so
 # re-running after nothing changed just says so. What differs would be
 # overwritten, and the run stops with a list and changes nothing -- an
-# edited rule set or a modified hook is never lost to a re-run; --force is
-# how you say to replace it. Even then, the files that hold your own
-# judgements are kept: the team's rules/*.md, and the per-project files
-# (tools/gate.conf, cq-baseline.txt, test-vocabulary.txt,
-# private-allow.txt), which this package cannot regenerate.
+# edited rule set or a modified hook is never lost to a re-run.
+#
+# --force means one thing: replace this package's own files with their newer
+# versions. It is how you update. It never touches a file that holds your
+# judgement, because those are not compared in the first place:
+#
+#   the team's rules/*.md          CLAUDE.md
+#   tools/gate.conf               cq-baseline.txt
+#   test-vocabulary.txt           private-allow.txt / refs-allow.txt
+#   settings.json (merged only)   other people's hooks in .claude/hooks
+#
+# Do not give --force a second meaning. Wanting one is the sign that the
+# ownership table below has a file in the wrong class -- fix the table.
+# Measured what the second meaning costs (2026-08-28): CLAUDE.md was
+# compared against the template, reported as an old version, and --force
+# replaced a project's 123-line conventions with the 28-line template while
+# printing "installed CLAUDE.md". See docs/install/design.md and
+# docs/install/adr-001-file-ownership.md before changing any of this.
 set -e
 cd "$(dirname "$0")"
 
@@ -155,23 +168,78 @@ add_conflict() {
 "
 }
 
-# Directories compare equal when their .py files do: an installed hook
-# imports hooklib, so the destination grows a __pycache__ the source never has.
-dir_unchanged() {
-  diff -rq -x '__pycache__' -x '*.pyc' "$1" "$2" >/dev/null 2>&1
+# ---- who owns what -----------------------------------------------------
+# Three classes, declared here because both the check above and the write
+# below must read the same table (docs/install/design.md D-01, D-02):
+#
+#   package  ours: compared, and replaced on --force
+#   user     the team's: never compared, never replaced
+#   once     created when missing, never touched again -- not even by --force
+#
+# CLAUDE.md and the declaration files are "once" and so appear in neither the
+# comparison nor any replacement. What is left to decide per file is the
+# inside of a skill, which mixes the two: the active rule set is the team's,
+# its *.template.md original is ours.
+#
+# Measured what happens when the two sides disagree (2026-08-28): a project's
+# own CLAUDE.md was listed as an old version and --force replaced 123 lines of
+# project conventions with the 28-line template, reporting success.
+user_owned() {
+  case "$1" in
+    rules/*.template.md) return 1 ;;
+    rules/*.md) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+# Both halves report one path per line, relative to the skill, and both skip
+# what the team owns. Per file rather than per directory: one difference --
+# a rule file the installer itself had deleted -- took a diff -rq to find
+# when the report named only the directory (D-04).
+#
+# Our files whose copy in the destination is missing or differs.
+skill_diffs() {
+  ( cd "$1" && find . -type f ) | sed 's|^\./||' | while read -r rel; do
+    case "$rel" in *.pyc|*__pycache__*) continue ;; esac
+    user_owned "$rel" && continue
+    cmp -s "$1/$rel" "$2/$rel" 2>/dev/null || echo "$rel"
+  done
+}
+
+# Files in the destination that this package does not have. An update
+# replaces the whole skill directory, so these are what it would remove.
+skill_extras() {
+  ( cd "$2" && find . -type f ) | sed 's|^\./||' | while read -r rel; do
+    case "$rel" in *.pyc|*__pycache__*) continue ;; esac
+    user_owned "$rel" && continue
+    [ -e "$1/$rel" ] || echo "$rel"
+  done
+}
+
+skill_unchanged() {
+  [ -z "$(skill_diffs "$1" "$2")$(skill_extras "$1" "$2")" ]
+}
+
+# ~/.claude/hooks holds other people's hooks too, so only our three files are
+# ours to compare; an unrelated hook beside them is not a difference (D-01).
+claude_hooks_unchanged() {
+  for f in claude-hooks/*.py; do
+    cmp -s "$f" "$claude_dest/$(basename "$f")" || return 1
+  done
+  return 0
 }
 
 if [ "$self" -eq 0 ] && [ "$skills" -eq 1 ]; then
   for d in "$src"/*/; do
     name=$(basename "$d")
-    if [ -e "$dest/$name" ] && ! dir_unchanged "$d" "$dest/$name"; then
-      add_conflict "$dest/$name"
-    fi
+    [ -e "$dest/$name" ] || continue
+    for rel in $(skill_diffs "${d%/}" "$dest/$name"); do
+      add_conflict "$dest/$name/$rel"
+    done
+    for rel in $(skill_extras "${d%/}" "$dest/$name"); do
+      add_conflict "$dest/$name/$rel  (not from this package; an update removes it)"
+    done
   done
-  if [ -n "$root" ] && [ -f CLAUDE.template.md ] && [ -e "$root/CLAUDE.md" ] \
-     && ! cmp -s CLAUDE.template.md "$root/CLAUDE.md"; then
-    add_conflict "$root/CLAUDE.md"
-  fi
 fi
 if [ "$hooks" -eq 1 ]; then
   for f in githooks/*; do
@@ -202,9 +270,13 @@ if [ -n "$conflicts" ] && [ "$force" -eq 0 ]; then
   echo "error: these differ from this package's versions and would be replaced:" >&2
   printf '%s' "$conflicts" >&2
   echo "nothing was installed." >&2
-  echo "Older versions from a previous install: re-run with --force to update" >&2
-  echo "them (your rules/*.md, gate.conf and the declaration files are kept" >&2
-  echo "even then). Your own edits: merge them into this repository first." >&2
+  echo "Unmarked lines are this package's own files, so they are older" >&2
+  echo "versions from a previous install: re-run with --force to update them." >&2
+  echo "The files that hold your judgement are not in this list and are never" >&2
+  echo "replaced -- the team's rules, CLAUDE.md, gate.conf and the declaration" >&2
+  echo "files are not compared at all." >&2
+  echo "If you edited or added one of the files above, move it into this" >&2
+  echo "repository first; --force replaces or removes it." >&2
   exit 1
 fi
 
@@ -217,7 +289,7 @@ for d in "$src"/*/; do
   [ "$self" -eq 1 ] && break
   [ "$skills" -eq 0 ] && break
   name=$(basename "$d")
-  if [ -e "$dest/$name" ] && dir_unchanged "$d" "$dest/$name"; then
+  if [ -e "$dest/$name" ] && skill_unchanged "${d%/}" "$dest/$name"; then
     uptodate=$((uptodate + 1))
     continue
   fi
@@ -253,13 +325,20 @@ if [ "$uptodate" -gt 0 ]; then
   echo "  up to date: $uptodate skill(s) already match this package"
 fi
 
-# project install only: provide CLAUDE.md (project conventions) from template.
-# Home installs never touch ~/CLAUDE.md.
+# project install only: provide CLAUDE.md (project conventions) from the
+# template, and only when the project has none. Home installs never touch
+# ~/CLAUDE.md. An existing one is the project's own document -- 123 lines
+# against the template's 28, in the one measured -- so it is never replaced,
+# not even by --force (docs/install/design.md D-01, ADR-001).
 if [ -n "$root" ] && [ -f CLAUDE.template.md ] && [ "$self" -eq 0 ] \
-   && [ "$skills" -eq 1 ] \
-   && ! cmp -s CLAUDE.template.md "$root/CLAUDE.md" 2>/dev/null; then
-  cp CLAUDE.template.md "$root/CLAUDE.md"
-  echo "  installed CLAUDE.md (project conventions)"
+   && [ "$skills" -eq 1 ]; then
+  if [ -e "$root/CLAUDE.md" ]; then
+    echo "  kept CLAUDE.md (yours; merge from CLAUDE.template.md here if you"
+    echo "    want the newer conventions)"
+  else
+    cp CLAUDE.template.md "$root/CLAUDE.md"
+    echo "  installed CLAUDE.md (project conventions)"
+  fi
 fi
 
 if [ "$claude_hooks" -eq 1 ]; then
@@ -272,7 +351,7 @@ if [ "$claude_hooks" -eq 1 ]; then
   fi
   if [ "$self" -eq 1 ]; then
     echo "  claude hooks already here (installing into their own repository)"
-  elif dir_unchanged claude-hooks "$claude_dest"; then
+  elif claude_hooks_unchanged; then
     echo "  up to date: the Claude Code hooks already match this package"
   else
     mkdir -p "$claude_dest"
