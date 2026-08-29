@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Stop new structural flags from being committed without being declared.
+"""Stop a change from adding structural flags nobody declared.
 
 This file is a copy. The original, and the install.sh that placed and
 updates it, live in https://github.com/jam7/ai-dev-gates
@@ -9,18 +9,23 @@ duplicated blocks. Some of what it finds is deliberate -- a byte-for-byte
 protocol builder is worth more laid out beside the spec than split up -- so a
 plain threshold cannot be a gate.
 
-So the gate is a **declaration**: every accepted flag is a line in the
-baseline file with the reason it is accepted. Anything cq-metrics reports that
-is not in that file fails the commit, **by name**. Accepting a new one means
-adding a line and saying why, and writing that line is the review.
+So the gate is a **declaration**: an accepted flag is a line in the baseline
+file with the reason. Anything reported that is not in that file fails the
+commit, by name. Writing that line is the review.
 
-It also reports baseline entries that no longer appear. Those are decisions
-being defended for code that has changed shape, and they go stale quietly.
-"No longer appears" has two very different causes, and they are reported
-apart: a function that measures under the threshold now is an improvement,
-but a function the analyzer cannot find at all may be a parser gap -- and
-advising "remove the line" for those once deleted a live 73-line
-declaration when a wrapped Dart signature stopped being parsed.
+What is measured is the change, not the repository (docs/gates/design.md
+D-11). Each touched file is measured twice -- as it is now, and as it is in
+HEAD -- and only keys that the new version added are the commit's problem.
+Legacy code never appears unless the commit touches it, which is what makes
+the gate installable in a project that already has code: measured on
+llvm/lib/Target/RISCV, the old whole-tree rule asked for 428 written reasons
+before the first commit could pass.
+
+Duplication is a comparison, not a measurement, so what it can find is
+decided by which files are read together. The corpus is the directory of
+each touched file, since a paste usually comes from nearby, and it is
+skipped with a notice past --dup-corpus-max files. Both versions of the
+corpus are measured, so the cost is twice a single scan.
 
 Keys ignore line numbers, since those shift under every edit:
 
@@ -29,21 +34,43 @@ Keys ignore line numbers, since those shift under every edit:
                                  between the same two files is not caught)
 
 Usage:
-  check-metrics.py                     measure, compare, report
-  check-metrics.py --list              print the current keys, to seed the baseline
-  check-metrics.py --scope lib --ext .dart
+  check-metrics.py                    what the staged change adds (the gate)
+  check-metrics.py --paths a.py b.py  what these files add (the Claude hook)
+  check-metrics.py --list             the whole scope, to seed the baseline
+  check-metrics.py --stale            baseline lines whose finding is gone
+  check-metrics.py --before D --after D    two trees, for the tests
+
+Exit: 0 nothing undeclared was added, 1 something was, 2 nothing to measure
+with.
 """
 import argparse
+import collections
 import os
 import re
+import shutil
 import subprocess
 import sys
+import tempfile
 
 DEFAULT_BASELINE = os.path.join('tools', 'cq-baseline.txt')
+DEFAULT_DUP_CORPUS_MAX = 400
+# What counts as code when this project has not narrowed --ext. cq-metrics
+# filters a directory walk by its own list, but a file named explicitly is
+# taken as given, and the corpus is named explicitly -- so without this a
+# README beside the touched file would be measured as source.
+CODE_EXTS = ('.c', '.h', '.cc', '.hh', '.cpp', '.hpp', '.cxx', '.go', '.java',
+             '.js', '.ts', '.rs', '.m', '.mm', '.dart', '.kt', '.swift',
+             '.cs', '.py')
 # cq-metrics.py lives in the cq-review skill, which may be installed in the
 # repository (team install) or in the home directory (personal install).
 METRICS_ENV = 'CQ_METRICS'
 SKILL_REL = os.path.join('.claude', 'skills', 'cq-review', 'cq-metrics.py')
+
+# What one run measures with. Bundled because it is one thing -- where the
+# tools are and what this project measures -- and passing the five of them
+# around separately put six parameters on measure_change().
+Setup = collections.namedtuple(
+    'Setup', 'script root ext dup_cap dup_dirs staged')
 
 SECTION = re.compile(r'^== (Long functions|Deep nesting|Long parameter lists|'
                      r'Duplicated blocks)')
@@ -110,18 +137,147 @@ def parse_keys(report):
     return keys
 
 
-def measure(script, root, scopes, ext):
-    """Run cq-metrics over the working tree. Returns keys, or None if the
-    configured scope does not exist here yet."""
-    paths = [p for p in scopes if os.path.isdir(os.path.join(root, p))]
-    if not paths:
-        return None
-    cmd = [sys.executable, script, '--top', '500']
+def run_metrics(script, cwd, paths, ext=None, dup=True):
+    """cq-metrics over [paths], relative to [cwd]. Returns {key: line}.
+
+    A path absent from this tree is dropped rather than passed on: the file a
+    change adds has no version in HEAD, and cq-metrics exits 2 on a path it
+    cannot open. Everything such a file contains is then new, which is what
+    an added file means.
+    """
+    here = [p for p in paths if os.path.exists(os.path.join(cwd, p))]
+    if not here:
+        return {}
+    cmd = [sys.executable, script, '--top', '100000']
     if ext:
         cmd += ['--ext', ext]
-    done = subprocess.run(cmd + paths, cwd=root, capture_output=True,
+    if not dup:
+        cmd += ['--dup-window', '0']
+    done = subprocess.run(cmd + here, cwd=cwd, capture_output=True,
                           text=True, check=True)
     return parse_keys(done.stdout)
+
+
+def git_lines(root, args):
+    done = subprocess.run(['git'] + args, cwd=root, capture_output=True,
+                          text=True)
+    return [line for line in done.stdout.split('\n') if line]
+
+
+def wanted(path, ext, scopes):
+    """Is this file one this project measures?"""
+    suffix = os.path.splitext(path)[1]
+    if suffix not in (ext.split(',') if ext else CODE_EXTS):
+        return False
+    if not scopes:
+        return True
+    return any(path == s or path.startswith(s.rstrip('/') + '/')
+               for s in scopes)
+
+
+def staged_paths(root, ext, scopes):
+    """Repository-relative paths this commit adds, copies or modifies."""
+    names = git_lines(root, ['diff', '--cached', '--name-only',
+                             '--diff-filter=ACM'])
+    return sorted(p for p in names if wanted(p, ext, scopes))
+
+
+def files_in(root, directory, ext):
+    """The measurable files directly in [directory], not recursive."""
+    here = os.path.join(root, directory)
+    if not os.path.isdir(here):
+        return set()
+    found = set()
+    for name in sorted(os.listdir(here)):
+        rel = os.path.normpath(os.path.join(directory, name))
+        if os.path.isfile(os.path.join(root, rel)) and wanted(rel, ext, None):
+            found.add(rel)
+    return found
+
+
+def dup_corpus(setup, targets):
+    """The files duplication is looked for in, and why it may be empty.
+
+    The directory of each touched file, not recursive: a paste usually comes
+    from a neighbour, and the cost is what bounds this (design.md D-14, D-15).
+    """
+    root, ext, cap = setup.root, setup.ext, setup.dup_cap
+    found = set(targets)
+    for directory in setup.dup_dirs or [os.path.dirname(t) for t in targets]:
+        found |= files_in(root, directory, ext)
+    if len(found) > cap:
+        return sorted(targets), ('duplication not checked: the corpus around '
+                                 'these files is %d files, over the %d limit '
+                                 '(--dup-corpus-max, or dup_corpus_max in '
+                                 'gate.conf). cq-review measures it in full.'
+                                 % (len(found), cap))
+    return sorted(found), None
+
+
+def blob(root, rev, path):
+    """A file's content at [rev] ('' for the index), or None if absent."""
+    done = subprocess.run(['git', 'show', '%s:%s' % (rev, path)], cwd=root,
+                          capture_output=True)
+    return done.stdout if done.returncode == 0 else None
+
+
+def plant(dest, rel, content):
+    target = os.path.join(dest, rel)
+    os.makedirs(os.path.dirname(target), exist_ok=True)
+    with open(target, 'wb') as f:
+        f.write(content)
+
+
+def build_trees(setup, targets, corpus):
+    """Two copies of [corpus]: as HEAD has it, and as the change leaves it.
+
+    Only the touched files differ between them, so the rest is copied from
+    the work tree once for each side. Returns (before, after, temp) where a
+    file missing from HEAD simply does not appear in before -- everything it
+    contains is then an addition, which is what a new file is.
+    """
+    root = setup.root
+    temp = tempfile.mkdtemp(prefix='cq-metrics-')
+    before, after = os.path.join(temp, 'before'), os.path.join(temp, 'after')
+    for rel in corpus:
+        if rel in targets:
+            continue
+        with open(os.path.join(root, rel), 'rb') as f:
+            content = f.read()
+        plant(before, rel, content)
+        plant(after, rel, content)
+    for rel in targets:
+        old = blob(root, 'HEAD', rel)
+        if old is not None:
+            plant(before, rel, old)
+        new = blob(root, '', rel) if setup.staged else None
+        if new is None:
+            with open(os.path.join(root, rel), 'rb') as f:
+                new = f.read()
+        plant(after, rel, new)
+    return before, after, temp
+
+
+def measure_change(setup, targets):
+    """Keys the change added, keys it left alone, and any corpus notice."""
+    corpus, notice = dup_corpus(setup, targets)
+    before, after, temp = build_trees(setup, set(targets), corpus)
+    try:
+        dup = notice is None
+        old = run_metrics(setup.script, before, corpus, setup.ext, dup)
+        new = run_metrics(setup.script, after, corpus, setup.ext, dup)
+    finally:
+        shutil.rmtree(temp, ignore_errors=True)
+    added = {k: v for k, v in new.items() if k not in old}
+    kept = {k: v for k, v in new.items() if k in old and touches(k, targets)}
+    return added, kept, notice
+
+
+def touches(key, targets):
+    """Does this key name one of the files the change touched?"""
+    ref = key.split(' ', 1)[1]
+    files = ref.split('|') if key.startswith('dup ') else [ref.split('::')[0]]
+    return any(f in targets for f in files)
 
 
 def functions_seen(script, root, paths):
@@ -177,15 +333,70 @@ def baseline_keys(path):
     return keys
 
 
-def report(current, resolved, unseen, new, baseline_name):
-    """Print what is undeclared and what is stale. Returns the exit status."""
+def report(added, kept, notice, baseline_name):
+    """Print what the change added. Returns the exit status."""
+    if notice:
+        print(notice, file=sys.stderr)
+    if kept:
+        print('Already there before this change (nothing to answer for):',
+              file=sys.stderr)
+        for key in sorted(kept):
+            print('  %s' % kept[key], file=sys.stderr)
+        print(file=sys.stderr)
+    if not added:
+        return 0
+    print('This change adds structural findings that are not declared:',
+          file=sys.stderr)
+    for key in sorted(added):
+        print('  %s' % added[key], file=sys.stderr)
+    print(file=sys.stderr)
+    print('Either restructure, or add the key to %s with the reason it is '
+          'worth keeping.' % baseline_name, file=sys.stderr)
+    print('The keys are:', file=sys.stderr)
+    for key in sorted(added):
+        print('  %s' % key, file=sys.stderr)
+    return 1
+
+
+def whole_scope(script, root, scopes, ext):
+    """Every key in the configured scope, or 2 if there is nothing to walk."""
+    paths = [p for p in (scopes or ['.'])
+             if os.path.isdir(os.path.join(root, p))]
+    if not paths:
+        print('none of the measured directories (%s) exist here.'
+              % ', '.join(scopes or ['.']), file=sys.stderr)
+        return 2, {}
+    return 0, run_metrics(script, root, paths, ext)
+
+
+def stale(script, root, args):
+    """Baseline lines whose finding is no longer there.
+
+    The gate measures only what a change touches, so a declaration is never
+    re-examined by it: an accepted finding that has since been restructured
+    keeps its line forever, and the file fills with decisions nobody holds
+    any more. This is the pass that finds them, run when you want to prune
+    (docs/gates/design.md D-17).
+    """
+    status, current = whole_scope(script, root, args.scope, args.ext)
+    if status:
+        return status
+    baseline = args.baseline
+    if not os.path.isabs(baseline):
+        baseline = os.path.join(root, baseline)
+    declared = baseline_keys(baseline)
+    resolved, unseen = split_gone(
+        sorted(k for k in declared if k not in current), script, root)
+    return report_stale(resolved, unseen, args.baseline)
+
+
+def report_stale(resolved, unseen, baseline_name):
     if resolved:
         print('No longer flagged -- remove these from %s:' % baseline_name,
               file=sys.stderr)
         for key in resolved:
             print('  %s' % key, file=sys.stderr)
         print(file=sys.stderr)
-
     if unseen:
         print('Declared, but the function itself is not seen by the '
               'analyzer:', file=sys.stderr)
@@ -195,28 +406,21 @@ def report(current, resolved, unseen, new, baseline_name):
               'code is still\nthere, this is a measurement gap, not an '
               'improvement: keep the line and report\nthe parser miss.'
               % baseline_name, file=sys.stderr)
-        print(file=sys.stderr)
-
-    if not new:
-        return 0
-
-    print('Undeclared structural findings:', file=sys.stderr)
-    for key in new:
-        print('  %s' % current[key], file=sys.stderr)
-    print(file=sys.stderr)
-    print('Either restructure, or add the key to %s with the reason it is '
-          'worth keeping.' % baseline_name, file=sys.stderr)
-    print('The keys are:', file=sys.stderr)
-    for key in new:
-        print('  %s' % key, file=sys.stderr)
-    return 1
+    return 1 if (resolved or unseen) else 0
 
 
 def parse_args():
     ap = argparse.ArgumentParser(
-        description='Fail on structural findings that are not declared.')
+        description='Fail on structural findings a change adds undeclared.')
     ap.add_argument('--list', action='store_true',
-                    help='print current keys, to seed the baseline')
+                    help='print every key in the scope, to seed the baseline')
+    ap.add_argument('--stale', action='store_true',
+                    help='report baseline lines whose finding is gone')
+    ap.add_argument('--paths', nargs='+', metavar='FILE',
+                    help='measure these files instead of the staged ones')
+    ap.add_argument('--before', metavar='DIR',
+                    help='with --after: compare two trees (for the tests)')
+    ap.add_argument('--after', metavar='DIR', help='see --before')
     ap.add_argument('--scope', action='append', metavar='DIR',
                     help='directory to measure, repeatable (default: the '
                          'whole repository)')
@@ -224,13 +428,51 @@ def parse_args():
                     help='extensions to measure, passed to cq-metrics.py')
     ap.add_argument('--baseline', metavar='PATH', default=DEFAULT_BASELINE,
                     help='declaration file (default: %s)' % DEFAULT_BASELINE)
+    ap.add_argument('--dup-corpus', action='append', metavar='DIR',
+                    help='look for duplication in these directories instead '
+                         'of the ones the touched files are in, repeatable')
+    ap.add_argument('--dup-corpus-max', type=int, metavar='N',
+                    default=DEFAULT_DUP_CORPUS_MAX,
+                    help='skip duplication past this many files (default %d)'
+                         % DEFAULT_DUP_CORPUS_MAX)
     return ap.parse_args()
+
+
+def compare_trees(script, args):
+    """--before/--after: the delta between two directories, undeclared only."""
+    old = run_metrics(script, args.before, ['.'], args.ext)
+    new = run_metrics(script, args.after, ['.'], args.ext)
+    added = {k: v for k, v in new.items() if k not in old}
+    kept = {k: v for k, v in new.items() if k in old}
+    declared = baseline_keys(args.baseline)
+    return report({k: v for k, v in added.items() if k not in declared},
+                  kept, None, args.baseline)
+
+
+def gate(script, root, args):
+    """The change this run is about: staged, or the files it was given."""
+    if args.paths:
+        targets = [p for p in args.paths
+                   if os.path.isfile(os.path.join(root, p))]
+    else:
+        targets = staged_paths(root, args.ext, args.scope)
+    if not targets:
+        return 0
+
+    baseline = args.baseline
+    if not os.path.isabs(baseline):
+        baseline = os.path.join(root, baseline)
+    declared = baseline_keys(baseline)
+    setup = Setup(script, root, args.ext, args.dup_corpus_max,
+                  args.dup_corpus, staged=not args.paths)
+    added, kept, notice = measure_change(setup, targets)
+    added = {k: v for k, v in added.items() if k not in declared}
+    return report(added, kept, notice, args.baseline)
 
 
 def main():
     args = parse_args()
     root = repo_root()
-
     script = metrics_script(root)
     if script is None:
         # Without cq-metrics.py there is nothing to measure, and someone
@@ -240,25 +482,19 @@ def main():
         print('Set %s to point at it.' % METRICS_ENV, file=sys.stderr)
         return 0
 
-    current = measure(script, root, args.scope or ['.'], args.ext)
-    if current is None:
-        print('none of the measured directories (%s) exist here; skipping the '
-              'structure check.' % ', '.join(args.scope), file=sys.stderr)
-        return 0
-
+    if args.before or args.after:
+        if not (args.before and args.after):
+            print('--before needs --after', file=sys.stderr)
+            return 2
+        return compare_trees(script, args)
+    if args.stale:
+        return stale(script, root, args)
     if args.list:
+        status, current = whole_scope(script, root, args.scope, args.ext)
         for key in sorted(current):
             print(key)
-        return 0
-
-    baseline = args.baseline
-    if not os.path.isabs(baseline):
-        baseline = os.path.join(root, baseline)
-    declared = baseline_keys(baseline)
-    resolved, unseen = split_gone(
-        sorted(k for k in declared if k not in current), script, root)
-    new = sorted(k for k in current if k not in declared)
-    return report(current, resolved, unseen, new, args.baseline)
+        return status
+    return gate(script, root, args)
 
 
 if __name__ == '__main__':

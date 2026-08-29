@@ -1,0 +1,3 @@
+Already there before this change (nothing to answer for):
+  ./lib/a.py:1  legacy()  72 code lines
+--- exit 0 ---

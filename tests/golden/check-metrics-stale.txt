@@ -8,13 +8,4 @@ Declared, but the function itself is not seen by the analyzer:
 If it was deleted or renamed, remove the line from tests/fixtures/check-metrics/cq-baseline.txt. If the code is still
 there, this is a measurement gap, not an improvement: keep the line and report
 the parser miss.
-
-Undeclared structural findings:
-  ~9 lines x 2 sites: tests/fixtures/braces/receiver.go:21, tests/fixtures/braces/twin.go:20
-  tests/fixtures/braces/shapes.c:25  many()  6 params
-
-Either restructure, or add the key to tests/fixtures/check-metrics/cq-baseline.txt with the reason it is worth keeping.
-The keys are:
-  dup tests/fixtures/braces/receiver.go|tests/fixtures/braces/twin.go
-  params tests/fixtures/braces/shapes.c::many
 --- exit 1 ---

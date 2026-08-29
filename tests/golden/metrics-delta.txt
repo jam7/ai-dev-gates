@@ -1,0 +1,12 @@
+Already there before this change (nothing to answer for):
+  ./lib/a.py:1  legacy()  72 code lines
+
+This change adds structural findings that are not declared:
+  ~10 lines x 2 sites: ./lib/a.py:78, ./lib/b.py:78
+  ./lib/b.py:4  fresh()  72 code lines
+
+Either restructure, or add the key to /dev/null with the reason it is worth keeping.
+The keys are:
+  dup ./lib/a.py|./lib/b.py
+  long ./lib/b.py::fresh
+--- exit 1 ---

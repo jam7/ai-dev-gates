@@ -16,6 +16,20 @@ ext=""
 # code and deliberately awkward test fixtures all drown the signal.
 scope=""
 
+# Where duplication is looked for, space separated. Empty means the directory
+# each touched file is in, which is where a paste usually comes from. Widen it
+# when a project's copies travel further; the cost is the corpus size, and
+# both the old and the new version of it are measured.
+#
+#   dup_corpus="lib src"
+dup_corpus=""
+
+# Skip the duplication check when the corpus is larger than this, saying so
+# rather than passing quietly. Empty means 400 files, which measured about
+# two seconds a side. cq-review measures the whole repository when you want
+# that picture.
+dup_corpus_max=""
+
 # Anything else to run before a commit, as a shell command, from the
 # repository root. It runs only when the commit touches a file matching ext.
 # A non-zero exit blocks the commit, the same as the checks above.

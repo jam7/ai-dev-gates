@@ -30,6 +30,8 @@ TRACE = '.claude/skills/spec-dev/trace-matrix.py'
 COUPLING = '.claude/skills/cq-review/cpp-coupling.py'
 REFS = 'tools/check-refs.py'
 REGISTER = 'tools/register-claude-hooks.py'
+METRICS_GATE = 'tools/check-metrics.py'
+DELTA = 'tests/deltas'
 HOOK_FIXTURES = 'tests/fixtures/hooks'
 
 CASES = [
@@ -163,11 +165,11 @@ CASES = [
     # measures under the threshold is "remove the line", one the analyzer
     # cannot find at all is "verify before removing" (a parser gap once
     # turned a live 73-line declaration into removal advice). A missing
-    # file and a dup pair count as resolved, and the current findings
-    # (params many, one dup) are left undeclared so the failing exit is
-    # fixed too.
-    ('check-metrics-stale', 'tools/check-metrics.py',
-     ['--scope', 'tests/fixtures/braces',
+    # file and a dup pair count as resolved. The gate no longer measures
+    # the whole scope, so this is its own pass now (--stale): a declaration
+    # the gate never re-examines is exactly the one that rots.
+    ('check-metrics-stale', METRICS_GATE,
+     ['--stale', '--scope', 'tests/fixtures/braces',
       '--baseline', 'tests/fixtures/check-metrics/cq-baseline.txt']),
     # pending: a declared work-in-progress ID hides only its coverage holes
     # and shows them in the summary; an undeclared one still blocks; a
@@ -199,6 +201,21 @@ CASES = [
     ('hooks-register-fresh', REGISTER,
      ['--project', '--settings', HOOK_FIXTURES + '/no-such.json',
       '--dry-run']),
+    # The gate judges the change, not the repository: a long function that
+    # was already there is context and does not block, while a long function
+    # and a duplicate the change adds do. --before/--after measures two trees
+    # so the delta is pinned without staging anything. The declared run is
+    # the same delta with both keys in a baseline: writing the line is what
+    # accepting a finding looks like.
+    ('metrics-delta', METRICS_GATE,
+     ['--before', DELTA + '/before', '--after', DELTA + '/after',
+      '--baseline', '/dev/null']),
+    ('metrics-delta-declared', METRICS_GATE,
+     ['--before', DELTA + '/before', '--after', DELTA + '/after',
+      '--baseline', DELTA + '/baseline.txt']),
+    # --before without --after is a usage error, not an empty comparison
+    # that would report everything as new.
+    ('metrics-delta-half', METRICS_GATE, ['--before', DELTA + '/before']),
 ]
 
 
