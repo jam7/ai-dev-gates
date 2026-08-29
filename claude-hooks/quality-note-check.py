@@ -4,10 +4,18 @@
 Two hooks share this file:
 
   --touched   PostToolUse on Edit|Write. Notes that this turn changed
-              production source, by leaving a marker.
-  --check     Stop. If the marker is there, looks at what was actually said
-              this turn; if the note is missing, blocks the stop and asks for
-              it, then clears the marker so the next stop goes through.
+              production source, by writing the path into a marker.
+  --check     Stop. If the marker is there, measures those files against
+              their version in HEAD and looks at what was actually said this
+              turn; if the note is missing, or does not answer for a finding
+              the turn added, it blocks the stop and asks, then clears the
+              marker so the next stop goes through.
+
+The measurement is tools/check-metrics.py, run over the touched files only
+(docs/gates/design.md D-10). It is the same judgement the commit gate makes,
+so what passes here passes there. Where the project does not have it, the
+note is still asked for and nothing is measured -- this half of the gate is
+a convenience, not the guarantee.
 
 Why at Stop rather than at the edit: the note is written when the work is
 presented, and by then the edit is thousands of tokens in the past. This is
@@ -25,6 +33,7 @@ import argparse
 import json
 import os
 import re
+import subprocess
 import sys
 import time
 
@@ -45,13 +54,33 @@ ASK = (
     'the device. If the note is already above, say so in one line and stop.'
 )
 
+# The note is there, but a finding this turn added is not named in it. The
+# whole value of the note is that the decision was made and written down; a
+# note that skips the one measurable thing is the case this hook exists for.
+ANSWERED_NOTHING = (
+    'The review note is there, but it does not name a structural finding '
+    'this turn added. Name the key in the note with the reason it is worth '
+    'keeping, or restructure and edit again.'
+)
+
+# Measured, so it is not the author's word against the reader's. Keys are
+# printed the way the baseline file wants them, so accepting one is a copy.
+MEASURED = (
+    '\n\nMeasured over the files this turn wrote:\n\n%s\n\n'
+    'A finding listed as added is this change\'s: name its key in the note '
+    'with the reason it is worth keeping, or restructure and edit again. '
+    'One listed as already there is context, not something to answer for. '
+    'The commit gate makes the same judgement, so what passes here passes '
+    'there.'
+)
+
 
 def marker_for(session):
     return hooklib.marker_for('quality-note', session)
 
 
 def touched(payload):
-    """Production source was written: remember it for the stop."""
+    """Production source was written: remember which file, for the stop."""
     path = (payload.get('tool_input') or {}).get('file_path') or ''
     if not hooklib.is_production_code(path):
         return 0
@@ -59,10 +88,57 @@ def touched(payload):
     if not session:
         return 0
     try:
-        open(marker_for(session), 'w').close()
+        with open(marker_for(session), 'a', encoding='utf-8') as f:
+            f.write(path + '\n')
     except OSError:
         pass
     return 0
+
+
+def marked_files(marker):
+    """The paths this turn wrote, in order, without repeats."""
+    try:
+        with open(marker, encoding='utf-8') as f:
+            paths = [line.strip() for line in f if line.strip()]
+    except OSError:
+        return []
+    return sorted({p for p in paths if os.path.isfile(p)})
+
+
+def measure(paths):
+    """What check-metrics says about these files, or None if it is not here.
+
+    Returns its report, which is empty when the change added nothing and the
+    files carried nothing worth mentioning.
+    """
+    root = hooklib.project_root(paths[0])
+    if not root:
+        return None
+    script = os.path.join(root, 'tools', 'check-metrics.py')
+    if not os.path.exists(script):
+        return None
+    inside = [os.path.relpath(p, root) for p in paths
+              if p.startswith(root + os.sep)]
+    if not inside:
+        return None
+    exts = sorted({os.path.splitext(p)[1] for p in inside})
+    cmd = [sys.executable, script, '--paths'] + inside
+    done = subprocess.run(cmd + ['--ext', ','.join(exts)], cwd=root,
+                          capture_output=True, text=True)
+    return done.stderr.strip(), added_keys(done.stderr)
+
+
+def added_keys(report):
+    """The keys check-metrics listed as added, which the note must name."""
+    keys, listing = [], False
+    for line in report.split('\n'):
+        if line.startswith('The keys are:'):
+            listing = True
+        elif listing and line.startswith('  '):
+            keys.append(line.strip())
+        elif listing and line.strip():
+            break
+    return keys
 
 
 def transcript_path(payload):
@@ -119,6 +195,7 @@ def check(payload):
     marker = marker_for(session)
     if not os.path.exists(marker):
         return 0
+    files = marked_files(marker)
     # The marker was written when the edit happened, so its own mtime is
     # where this turn's code changes started.
     edited_at = time.strftime('%Y-%m-%dT%H:%M:%S',
@@ -132,12 +209,18 @@ def check(payload):
     except OSError:
         pass
 
+    report, keys = measure(files) if files else (None, [])
     path = transcript_path(payload)
     said = said_since(path, edited_at) if path else None
-    if said is not None and WROTE_NOTE.search(said):
+    wrote_note = said is not None and WROTE_NOTE.search(said)
+    unanswered = [k for k in keys if said is None or k not in said]
+    if wrote_note and not unanswered:
         return 0
 
-    json.dump({'decision': 'block', 'reason': ASK}, sys.stdout)
+    reason = ASK if not wrote_note else ANSWERED_NOTHING
+    if report:
+        reason += MEASURED % report
+    json.dump({'decision': 'block', 'reason': reason}, sys.stdout)
     return 0
 
 
