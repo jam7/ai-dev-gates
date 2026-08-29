@@ -5,6 +5,24 @@
 # missing and never replaces it, so updating the hooks cannot reset what you
 # configured here. Shell syntax, since the hooks source it -- assignments
 # only, no commands.
+#
+# An empty value does NOT mean the same thing everywhere. Some of these
+# switch a check off when empty and some open it all the way, so the meaning
+# is written beside each one -- and here, together, because the difference is
+# invisible while reading one line at a time:
+#
+#   empty switches the check off:  trace_args, text_scope, text_scope_en,
+#                                  extra_checks, always_checks
+#   empty means everything:        ext (every language cq-metrics knows),
+#                                  scope (the whole repository)
+#   empty means a default:         dup_corpus (the touched file's directory),
+#                                  max_files (400)
+#
+# ext and scope are the two to read twice. Left empty they measure the most,
+# not the least. The gate only ever reads the files a commit touches, so
+# narrowing them is no longer how commits are kept fast -- it is how a
+# generated or vendored tree is kept out of the report.
+
 
 # Extensions the structure check measures, comma separated. Empty measures
 # every language cq-metrics.py knows. Narrowing it to the production language
