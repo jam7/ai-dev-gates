@@ -23,7 +23,6 @@
 # narrowing them is no longer how commits are kept fast -- it is how a
 # generated or vendored tree is kept out of the report.
 
-
 # Extensions the structure check measures, comma separated. Empty measures
 # every language cq-metrics.py knows. Narrowing it to the production language
 # keeps a docs-only commit instant.
@@ -42,11 +41,13 @@ scope=""
 #   dup_corpus="lib src"
 dup_corpus=""
 
-# Skip the duplication check when the corpus is larger than this, saying so
-# rather than passing quietly. Empty means 400 files, which measured about
-# two seconds a side. cq-review measures the whole repository when you want
-# that picture.
-dup_corpus_max=""
+# The most files one structure check will read, and the only time budget it
+# has: about 6.5ms a file, both versions of them. It gives way in two steps
+# and says so each time, rather than going quiet for minutes -- past the
+# limit the neighbours are dropped and duplication is not checked, and past
+# it in the change itself nothing is measured, because a commit that size is
+# a review rather than a gate. Empty means 400 files (about three seconds).
+max_files=""
 
 # Anything else to run before a commit, as a shell command, from the
 # repository root. It runs only when the commit touches a file matching ext.

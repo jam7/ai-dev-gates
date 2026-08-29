@@ -50,6 +50,17 @@ settings.json のマージ (`register-claude-hooks.py`) は `--dry-run` で結�
 | 想定外の形は書かずに exit 2 | `hooks/settings-broken.json` |
 | 設定ファイルがまだ無い場合 | (存在しないパスを渡す) |
 
+ゲートの増分判定 (`check-metrics.py`) は `--before` / `--after` で 2 つのツリーを
+比べさせ、staged 状態に依存せず固定しています。
+
+| 判断 | 押さえているケース |
+|---|---|
+| 既にあった長い関数は止めない (文脈として 1 度出すだけ) | `metrics-delta` |
+| 変更が増やした長い関数と重複は止める | 同上 |
+| 宣言済みのキーは通る | `metrics-delta-declared` |
+| `--before` だけは使い方の誤り (全部が新規に見えるのを防ぐ) | `metrics-delta-half` |
+| 上限超過は測らずに、測らなかったと言う | `metrics-max-files` |
+
 ## 記録されている既知の限界
 
 golden は「今の挙動」なので、**バグや限界もそのまま記録されます**。意図的です。

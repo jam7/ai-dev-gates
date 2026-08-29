@@ -23,9 +23,14 @@ before the first commit could pass.
 
 Duplication is a comparison, not a measurement, so what it can find is
 decided by which files are read together. The corpus is the directory of
-each touched file, since a paste usually comes from nearby, and it is
-skipped with a notice past --dup-corpus-max files. Both versions of the
-corpus are measured, so the cost is twice a single scan.
+each touched file, since a paste usually comes from nearby.
+
+--max-files is the one budget: the most files this will read in a pass,
+both versions of them, at roughly 6.5ms a file. It gives way in two steps,
+and says so each time rather than going quiet for minutes: past the limit
+the neighbours are dropped and duplication is not checked, and past it in
+the staged files themselves nothing is measured at all. A commit that
+large is a bulk change, which is a human's review, not this one's.
 
 Keys ignore line numbers, since those shift under every edit:
 
@@ -53,7 +58,7 @@ import sys
 import tempfile
 
 DEFAULT_BASELINE = os.path.join('tools', 'cq-baseline.txt')
-DEFAULT_DUP_CORPUS_MAX = 400
+DEFAULT_MAX_FILES = 400
 # What counts as code when this project has not narrowed --ext. cq-metrics
 # filters a directory walk by its own list, but a file named explicitly is
 # taken as given, and the corpus is named explicitly -- so without this a
@@ -70,7 +75,7 @@ SKILL_REL = os.path.join('.claude', 'skills', 'cq-review', 'cq-metrics.py')
 # tools are and what this project measures -- and passing the five of them
 # around separately put six parameters on measure_change().
 Setup = collections.namedtuple(
-    'Setup', 'script root ext dup_cap dup_dirs staged')
+    'Setup', 'script root ext max_files dup_dirs staged')
 
 SECTION = re.compile(r'^== (Long functions|Deep nesting|Long parameter lists|'
                      r'Duplicated blocks)')
@@ -183,15 +188,22 @@ def staged_paths(root, ext, scopes):
 
 
 def files_in(root, directory, ext):
-    """The measurable files directly in [directory], not recursive."""
+    """The measurable files directly in [directory], not recursive.
+
+    The extension is checked before the entry is asked whether it is a file:
+    in a directory of thousands, that is the difference between one syscall
+    per candidate and one per entry. scandir carries the answer from the
+    directory read, so most entries cost nothing at all.
+    """
     here = os.path.join(root, directory)
     if not os.path.isdir(here):
         return set()
     found = set()
-    for name in sorted(os.listdir(here)):
-        rel = os.path.normpath(os.path.join(directory, name))
-        if os.path.isfile(os.path.join(root, rel)) and wanted(rel, ext, None):
-            found.add(rel)
+    with os.scandir(here) as entries:
+        for entry in entries:
+            rel = os.path.normpath(os.path.join(directory, entry.name))
+            if wanted(rel, ext, None) and entry.is_file():
+                found.add(rel)
     return found
 
 
@@ -201,15 +213,20 @@ def dup_corpus(setup, targets):
     The directory of each touched file, not recursive: a paste usually comes
     from a neighbour, and the cost is what bounds this (design.md D-14, D-15).
     """
-    root, ext, cap = setup.root, setup.ext, setup.dup_cap
+    root, ext, cap = setup.root, setup.ext, setup.max_files
     found = set(targets)
-    for directory in setup.dup_dirs or [os.path.dirname(t) for t in targets]:
+    # One directory, however many of the touched files are in it: reading it
+    # once per file was the same listing over and over.
+    directories = setup.dup_dirs or {os.path.dirname(t) for t in targets}
+    for directory in sorted(directories):
         found |= files_in(root, directory, ext)
+        if len(found) > cap:
+            break  # over budget already; the rest would not change that
     if len(found) > cap:
         return sorted(targets), ('duplication not checked: the corpus around '
                                  'these files is %d files, over the %d limit '
-                                 '(--dup-corpus-max, or dup_corpus_max in '
-                                 'gate.conf). cq-review measures it in full.'
+                                 '(--max-files, or max_files in gate.conf). '
+                                 'cq-review measures it in full.'
                                  % (len(found), cap))
     return sorted(found), None
 
@@ -219,6 +236,21 @@ def blob(root, rev, path):
     done = subprocess.run(['git', 'show', '%s:%s' % (rev, path)], cwd=root,
                           capture_output=True)
     return done.stdout if done.returncode == 0 else None
+
+
+def read(root, rel):
+    with open(os.path.join(root, rel), 'rb') as f:
+        return f.read()
+
+
+def differs_from_index(root):
+    """Paths whose work tree copy is not what is staged.
+
+    Everything else can be read from disk instead of asked of git, which is
+    one process per file saved -- and in a commit, almost every staged file
+    is exactly what is on disk.
+    """
+    return set(git_lines(root, ['diff', '--name-only']))
 
 
 def plant(dest, rel, content):
@@ -239,36 +271,45 @@ def build_trees(setup, targets, corpus):
     root = setup.root
     temp = tempfile.mkdtemp(prefix='cq-metrics-')
     before, after = os.path.join(temp, 'before'), os.path.join(temp, 'after')
+    unstaged = differs_from_index(root) if setup.staged else set()
+    in_head = False
     for rel in corpus:
         if rel in targets:
             continue
-        with open(os.path.join(root, rel), 'rb') as f:
-            content = f.read()
+        content = read(root, rel)
         plant(before, rel, content)
         plant(after, rel, content)
     for rel in targets:
         old = blob(root, 'HEAD', rel)
         if old is not None:
             plant(before, rel, old)
-        new = blob(root, '', rel) if setup.staged else None
-        if new is None:
-            with open(os.path.join(root, rel), 'rb') as f:
-                new = f.read()
-        plant(after, rel, new)
-    return before, after, temp
+            in_head = True
+        new = blob(root, '', rel) if rel in unstaged else read(root, rel)
+        plant(after, rel, new if new is not None else read(root, rel))
+    return before, after, temp, in_head
 
 
 def measure_change(setup, targets):
-    """Keys the change added, keys it left alone, and any corpus notice."""
-    corpus, notice = dup_corpus(setup, targets)
-    before, after, temp = build_trees(setup, set(targets), corpus)
+    """Keys the change added, keys it left alone, and any corpus notice.
+
+    Two passes over the corpus, one per version, except when no touched file
+    exists in HEAD at all: the neighbours are byte-identical copies in both
+    trees, so their keys cannot differ, and every key naming a touched file
+    is then new by definition. That is the first commit, and every commit
+    that only adds files.
+    """
+    targets = set(targets)
+    corpus, notice = dup_corpus(setup, sorted(targets))
+    before, after, temp, in_head = build_trees(setup, targets, corpus)
     try:
         dup = notice is None
-        old = run_metrics(setup.script, before, corpus, setup.ext, dup)
         new = run_metrics(setup.script, after, corpus, setup.ext, dup)
+        old = (run_metrics(setup.script, before, corpus, setup.ext, dup)
+               if in_head else {})
     finally:
         shutil.rmtree(temp, ignore_errors=True)
-    added = {k: v for k, v in new.items() if k not in old}
+    added = {k: v for k, v in new.items()
+             if k not in old and touches(k, targets)}
     kept = {k: v for k, v in new.items() if k in old and touches(k, targets)}
     return added, kept, notice
 
@@ -431,10 +472,12 @@ def parse_args():
     ap.add_argument('--dup-corpus', action='append', metavar='DIR',
                     help='look for duplication in these directories instead '
                          'of the ones the touched files are in, repeatable')
-    ap.add_argument('--dup-corpus-max', type=int, metavar='N',
-                    default=DEFAULT_DUP_CORPUS_MAX,
-                    help='skip duplication past this many files (default %d)'
-                         % DEFAULT_DUP_CORPUS_MAX)
+    ap.add_argument('--max-files', type=int, metavar='N',
+                    default=DEFAULT_MAX_FILES,
+                    help='the most files to read in a pass: past it the '
+                         'duplication corpus is dropped, and past it in the '
+                         'change itself nothing is measured (default %d)'
+                         % DEFAULT_MAX_FILES)
     return ap.parse_args()
 
 
@@ -458,12 +501,18 @@ def gate(script, root, args):
         targets = staged_paths(root, args.ext, args.scope)
     if not targets:
         return 0
+    if len(targets) > args.max_files:
+        print('structure check skipped: this change is %d files, over the %d '
+              'limit (--max-files, or max_files in gate.conf). A change that '
+              'size is a review, not a gate; cq-review measures the result.'
+              % (len(targets), args.max_files), file=sys.stderr)
+        return 0
 
     baseline = args.baseline
     if not os.path.isabs(baseline):
         baseline = os.path.join(root, baseline)
     declared = baseline_keys(baseline)
-    setup = Setup(script, root, args.ext, args.dup_corpus_max,
+    setup = Setup(script, root, args.ext, args.max_files,
                   args.dup_corpus, staged=not args.paths)
     added, kept, notice = measure_change(setup, targets)
     added = {k: v for k, v in added.items() if k not in declared}

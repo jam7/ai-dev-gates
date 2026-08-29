@@ -216,6 +216,14 @@ CASES = [
     # --before without --after is a usage error, not an empty comparison
     # that would report everything as new.
     ('metrics-delta-half', METRICS_GATE, ['--before', DELTA + '/before']),
+    # The budget, said out loud rather than spent: two files named with a
+    # limit of one is the shape of an import commit meeting max_files. The
+    # gate passes -- a change that size is a review, not a gate -- and the
+    # reason is on stderr, because going quiet for minutes was the
+    # complaint this replaced.
+    ('metrics-max-files', METRICS_GATE,
+     ['--paths', 'tools/check-refs.py', 'tools/check-text.py',
+      '--max-files', '1']),
 ]
 
 

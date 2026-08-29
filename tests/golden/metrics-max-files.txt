@@ -1,0 +1,2 @@
+structure check skipped: this change is 2 files, over the 1 limit (--max-files, or max_files in gate.conf). A change that size is a review, not a gate; cq-review measures the result.
+--- exit 0 ---
