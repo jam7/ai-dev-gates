@@ -1,0 +1,2 @@
+none of the measured paths (tests/fixtures/no-such.c) exist here.
+--- exit 2 ---

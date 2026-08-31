@@ -23,7 +23,7 @@ root=$(git rev-parse --show-toplevel)
 status=0
 
 ext=""           # extensions to measure; empty means every language
-scope=""         # directories to measure; empty means the repository
+scope=""         # dirs or files to measure; empty means the repository
 dup_corpus=""    # directories to look for duplication in; empty means the
                  # directory each touched file is in
 max_files=""     # the most files one structure check reads; empty means 400

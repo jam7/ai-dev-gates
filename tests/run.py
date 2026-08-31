@@ -224,6 +224,16 @@ CASES = [
     ('metrics-max-files', METRICS_GATE,
      ['--paths', 'tools/check-refs.py', 'tools/check-text.py',
       '--max-files', '1']),
+    # scope takes a file as well as a directory (design.md D-19), and the two
+    # mix in one run: the whole-scope pass dropped anything that was not a
+    # directory, so the same gate.conf line measured one thing at commit time
+    # and another here. A scope naming nothing that exists is still exit 2 --
+    # a misconfigured gate must not read as a clean one.
+    ('metrics-list-file-scope', METRICS_GATE,
+     ['--list', '--scope', 'tests/fixtures/braces/shapes.c',
+      '--scope', 'tests/deltas/after']),
+    ('metrics-scope-missing', METRICS_GATE,
+     ['--list', '--scope', 'tests/fixtures/no-such.c']),
 ]
 
 

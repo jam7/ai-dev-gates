@@ -28,9 +28,13 @@
 # keeps a docs-only commit instant.
 ext=""
 
-# Directories it measures, space separated. Empty measures the whole
-# repository, which is usually worth narrowing: generated trees, vendored
-# code and deliberately awkward test fixtures all drown the signal.
+# What it measures, space separated: directories, or single files where a
+# directory is too coarse -- one generated file beside hand-written code has
+# nowhere else to be said. Empty measures the whole repository, which is
+# usually worth narrowing: generated trees, vendored code and deliberately
+# awkward test fixtures all drown the signal.
+#
+#   scope="lib src tools/gen.py"
 scope=""
 
 # Where duplication is looked for, space separated. Empty means the directory

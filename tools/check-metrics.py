@@ -170,7 +170,11 @@ def git_lines(root, args):
 
 
 def wanted(path, ext, scopes):
-    """Is this file one this project measures?"""
+    """Is this file one this project measures?
+
+    A scope entry is a directory prefix or the file itself, so `scope` in
+    gate.conf can name one file where a directory is too coarse (D-19).
+    """
     suffix = os.path.splitext(path)[1]
     if suffix not in (ext.split(',') if ext else CODE_EXTS):
         return False
@@ -400,11 +404,16 @@ def report(added, kept, notice, baseline_name):
 
 
 def whole_scope(script, root, scopes, ext):
-    """Every key in the configured scope, or 2 if there is nothing to walk."""
+    """Every key in the configured scope, or 2 if there is nothing to walk.
+
+    A scope entry may name a single file as well as a directory (D-19): the
+    staged filter has always accepted one, and this pass dropped it, so the
+    same gate.conf line meant two different things depending on which ran.
+    """
     paths = [p for p in (scopes or ['.'])
-             if os.path.isdir(os.path.join(root, p))]
+             if os.path.exists(os.path.join(root, p))]
     if not paths:
-        print('none of the measured directories (%s) exist here.'
+        print('none of the measured paths (%s) exist here.'
               % ', '.join(scopes or ['.']), file=sys.stderr)
         return 2, {}
     return 0, run_metrics(script, root, paths, ext)
@@ -462,9 +471,9 @@ def parse_args():
     ap.add_argument('--before', metavar='DIR',
                     help='with --after: compare two trees (for the tests)')
     ap.add_argument('--after', metavar='DIR', help='see --before')
-    ap.add_argument('--scope', action='append', metavar='DIR',
-                    help='directory to measure, repeatable (default: the '
-                         'whole repository)')
+    ap.add_argument('--scope', action='append', metavar='PATH',
+                    help='directory or file to measure, repeatable '
+                         '(default: the whole repository)')
     ap.add_argument('--ext', metavar='.a,.b',
                     help='extensions to measure, passed to cq-metrics.py')
     ap.add_argument('--baseline', metavar='PATH', default=DEFAULT_BASELINE,

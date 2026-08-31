@@ -1,0 +1,5 @@
+dup tests/deltas/after/lib/a.py|tests/deltas/after/lib/b.py
+long tests/deltas/after/lib/a.py::legacy
+long tests/deltas/after/lib/b.py::fresh
+params tests/fixtures/braces/shapes.c::many
+--- exit 0 ---
