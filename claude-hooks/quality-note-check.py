@@ -106,21 +106,25 @@ def marked_files(marker):
 
 
 def measure(paths):
-    """What check-metrics says about these files, or None if it is not here.
+    """What check-metrics says about these files: (report, added keys).
 
-    Returns its report, which is empty when the change added nothing and the
-    files carried nothing worth mentioning.
+    The report is empty when the change added nothing and the files carried
+    nothing worth mentioning, and None where there is nothing to measure
+    with -- no work tree, no check-metrics.py, or no file inside the project.
+    Both halves are always returned: the caller unpacks the pair, so a bare
+    None here ended the hook in a traceback on every project without the
+    checker.
     """
     root = hooklib.project_root(paths[0])
     if not root:
-        return None
+        return None, []
     script = os.path.join(root, 'tools', 'check-metrics.py')
     if not os.path.exists(script):
-        return None
+        return None, []
     inside = [os.path.relpath(p, root) for p in paths
               if p.startswith(root + os.sep)]
     if not inside:
-        return None
+        return None, []
     exts = sorted({os.path.splitext(p)[1] for p in inside})
     cmd = [sys.executable, script, '--paths'] + inside
     done = subprocess.run(cmd + ['--ext', ','.join(exts)], cwd=root,
